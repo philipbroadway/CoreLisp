@@ -1,5 +1,5 @@
 //
-//  Environment.swift
+//  LispEnvironment.swift
 //  CoreLisp
 //
 //  Created by philipbroadway on 6/17/25.
@@ -76,38 +76,31 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
             return try env.get(sym)
 
         case .cons(let car, let cdr):
-            //TODO: Handle special forms like QUOTE, SETQ, DEFINE
-            guard let head = try? eval(car, in: env) else {
-                throw EvalError.invalidForm("Bad function/operator `\(car)`")
+            // Handle special forms before evaluating car
+            if case let .symbol(sym) = car {
+                switch sym.name.uppercased() {
+                    case "QUOTE":
+                        return try car1(cdr)
+                    case "SETQ":
+                        let nameSym = try car1(cdr)
+                        guard case let .symbol(s) = nameSym else {
+                            throw EvalError.invalidArgument("SETQ expects symbol")
+                        }
+                        let val = try car2(cdr).map { try eval($0, in: env) } ?? .nil
+                        env.define(s, value: val)
+                        return val
+                    default:
+                        break
+                }
             }
-
+            let head = try eval(car, in: env)
             switch head {
-                case .symbol(let sym):
-                    switch sym.name.uppercased() {
-                        case "QUOTE":
-                            return try car1(cdr)
-
-                        case "SETQ":
-                            let nameSym = try car1(cdr)
-                            guard case let .symbol(s) = nameSym else {
-                                throw EvalError.invalidArgument("SETQ expects symbol")
-                            }
-                            let val = try car2(cdr).map { try eval($0, in: env) } ?? .nil
-                            env.define(s, value: val)
-                            return val
-
-                        default:
-                            break
-                    }
-
                 case .function(let fn):
                     let args = try listToArray(cdr).map { try eval($0, in: env) }
                     return try fn(args)
-
                 default:
                     throw EvalError.notAFunction
             }
-            throw EvalError.notAFunction
 
         default:
             throw EvalError.invalidForm("Unexpected form")

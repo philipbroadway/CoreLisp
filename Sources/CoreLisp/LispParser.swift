@@ -1,5 +1,5 @@
 //
-//  Parser.swift
+//  LispParser.swift
 //  CoreLisp
 //
 //  Created by philipbroadway on 6/17/25.
@@ -7,7 +7,7 @@
 
 import Foundation
 
-public enum ParseError: Error {
+public enum LispParseError: Error {
     case unexpectedEndOfInput
     case unexpectedToken(String)
     case expectedDot
@@ -21,7 +21,7 @@ public func makeQuoteForm(_ name: String, tokens: inout [String]) throws -> Lisp
 
 public func parse(tokens: inout [String]) throws -> LispValue {
     guard let token = tokens.popLast() else {
-        throw ParseError.unexpectedEndOfInput
+        throw LispParseError.unexpectedEndOfInput
     }
 
     switch token {
@@ -30,7 +30,7 @@ public func parse(tokens: inout [String]) throws -> LispValue {
     case "'":
         return try makeQuoteForm("QUOTE", tokens: &tokens)
     case "#\\":
-        guard let next = tokens.popLast() else { throw ParseError.unexpectedEndOfInput }
+        guard let next = tokens.popLast() else { throw LispParseError.unexpectedEndOfInput }
         return .character(Character(next))
     case "`":
         return try makeQuoteForm("QUASIQUOTE", tokens: &tokens)
@@ -55,7 +55,7 @@ public func parseList(_ tokens: inout [String]) throws -> LispValue {
         tokens.removeLast() // eat dot
         let cdr = try parse(tokens: &tokens)
         guard tokens.popLast() == ")" else {
-            throw ParseError.unexpectedToken("Expected closing ) after dotted pair")
+            throw LispParseError.unexpectedToken("Expected closing ) after dotted pair")
         }
         return .cons(car: car, cdr: cdr)
     } else {
