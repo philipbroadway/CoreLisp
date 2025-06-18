@@ -88,28 +88,80 @@ let global: LispEnvironment = {
         let divisor = try LispNumeric(args[1])
         
         switch (dividend, divisor) {
+            case let (.integer(a), .integer(b)):
+                guard b != 0 else {
+                    throw LispError.eval("MOD: division by zero")
+                }
+                return .number(.integer(a % b))
+            case let (.float(a), .float(b)):
+                guard b != 0 else {
+                    throw LispError.eval("MOD: division by zero")
+                }
+                return .number(.float(a.truncatingRemainder(dividingBy: b)))
+            case let (.integer(a), .float(b)):
+                guard b != 0 else {
+                    throw LispError.eval("MOD: division by zero")
+                }
+                return .number(.float(Double(a).truncatingRemainder(dividingBy: b)))
+            case let (.float(a), .integer(b)):
+                guard b != 0 else {
+                    throw LispError.eval("MOD: division by zero")
+                }
+                return .number(.float(a.truncatingRemainder(dividingBy: Double(b))))
+            default:
+                throw LispError.eval("MOD: unsupported numeric types")
+        }
+    }))
+    
+    env.define(LispSymbol(name: "REM", package: kCommonLisp), value: .function({ args in
+        guard args.count == 2 else {
+            throw LispError.arity(expected: 2, got: args.count)
+        }
+        let dividend = try LispNumeric(args[0])
+        let divisor = try LispNumeric(args[1])
+        
+        switch (dividend, divisor) {
         case let (.integer(a), .integer(b)):
             guard b != 0 else {
-                throw LispError.eval("MOD: division by zero")
+                throw LispError.eval("REM: division by zero")
             }
-            return .number(.integer(a % b))
+            let rem = a % b
+            return .number(.integer(rem))
         case let (.float(a), .float(b)):
             guard b != 0 else {
-                throw LispError.eval("MOD: division by zero")
+                throw LispError.eval("REM: division by zero")
             }
-            return .number(.float(a.truncatingRemainder(dividingBy: b)))
+            let rem = a.truncatingRemainder(dividingBy: b)
+            return .number(.float(rem))
         case let (.integer(a), .float(b)):
             guard b != 0 else {
-                throw LispError.eval("MOD: division by zero")
+                throw LispError.eval("REM: division by zero")
             }
-            return .number(.float(Double(a).truncatingRemainder(dividingBy: b)))
+            let rem = Double(a).truncatingRemainder(dividingBy: b)
+            return .number(.float(rem))
         case let (.float(a), .integer(b)):
             guard b != 0 else {
-                throw LispError.eval("MOD: division by zero")
+                throw LispError.eval("REM: division by zero")
             }
-            return .number(.float(a.truncatingRemainder(dividingBy: Double(b))))
+            let rem = a.truncatingRemainder(dividingBy: Double(b))
+            return .number(.float(rem))
         default:
-            throw LispError.eval("MOD: unsupported numeric types")
+            throw LispError.eval("REM: unsupported numeric types")
+        }
+    }))
+    
+    env.define(LispSymbol(name: "ABS", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        let number = try LispNumeric(args[0])
+        switch number {
+            case .integer(let value):
+                return .number(.integer(abs(value)))
+            case .float(let value):
+                return .number(.float(abs(value)))
+            default:
+                throw LispError.eval("ABS expects a numeric argument, got: \(args[0])")
         }
     }))
     

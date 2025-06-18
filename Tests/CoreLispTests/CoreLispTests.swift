@@ -173,9 +173,9 @@ func listRegression() async throws {
 @MainActor
 @Test func arithmeticCore() async throws {
     let cases: [(String, String)] = [
-         ("(mod 7 3)", "1")
-        // ("(rem 7 3)", "1"),
-        // ("(abs -5)", "5"),
+         ("(mod 7 3)", "1"),
+         ("(rem 7 3)", "1"),
+         ("(abs -5)", "5")
         // ("(min 1 2 3)", "1"),
         // ("(max 1 2 3)", "3"),
         // ("(1+ 41)", "42"),
