@@ -188,13 +188,13 @@ func listRegression() async throws {
 @Test func comparisonCore() async throws {
     let cases: [(String, String)] = [
          ("(= 3 3)", "T"),
-        // ("(< 1 2)", "T"),
-        // ("(> 2 1)", "T"),
-        // ("(<= 2 2)", "T"),
-        // ("(>= 2 2)", "T"),
-        // ("(eq 'a 'a)", "T"),
-        // ("(equal '(1 2) '(1 2))", "T"),
-        // ("(eql 42 42)", "T"),
+         ("(< 1 2)", "T"),
+         ("(> 2 1)", "T"),
+         ("(<= 2 2)", "T"),
+         ("(>= 2 2)", "T"),
+         ("(eq 'a 'a)", "T"),
+         ("(equal '(1 2) '(1 2))", "T"),
+         ("(eql 42 42)", "T"),
     ]
     try await evaluateCases(cases)
 }

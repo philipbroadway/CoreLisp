@@ -6,7 +6,7 @@
 //
 import Foundation
 
-public enum LispNumber {
+public enum LispNumber: Equatable {
     case integer(Int)
     case float(Double)
     case ratio(numerator: Int, denominator: Int)
@@ -38,6 +38,30 @@ indirect public enum LispValue {
     case cons(car: LispValue, cdr: LispValue)
     case function(([LispValue]) throws -> LispValue)
     case `nil`
+}
+
+extension LispValue: Equatable {
+    public static func == (lhs: LispValue, rhs: LispValue) -> Bool {
+        switch (lhs, rhs) {
+        case let (.symbol(a), .symbol(b)):
+            return a == b
+        case let (.number(a), .number(b)):
+            return a == b
+        case let (.string(a), .string(b)):
+            return a == b
+        case let (.character(a), .character(b)):
+            return a == b
+        case let (.cons(car1, cdr1), .cons(car2, cdr2)):
+            return car1 == car2 && cdr1 == cdr2
+        case (.function(_), .function(_)):
+            // No meaningful equality for functions
+            return false
+        case (.nil, .nil):
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 extension LispValue {
@@ -87,4 +111,3 @@ public func consToString(_ cons: LispValue) -> String {
         return "(" + parts.joined(separator: " ") + " . " + current.description + ")"
     }
 }
-

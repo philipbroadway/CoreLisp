@@ -1,5 +1,29 @@
 public let kCommonLisp = "COMMON-LISP"
 
+public func lispEqual(_ a: LispValue, _ b: LispValue) -> Bool {
+    switch (a, b) {
+        case let (.cons(car1, cdr1), .cons(car2, cdr2)):
+            return lispEqual(car1, car2) && lispEqual(cdr1, cdr2)
+        default:
+            return a == b
+    }
+}
+
+public func lispEql(_ a: LispValue, _ b: LispValue) -> Bool {
+    switch (a, b) {
+        case let (.number(an), .number(bn)):
+            return an == bn
+        case let (.character(ac), .character(bc)):
+            return ac == bc
+        case let (.symbol(asym), .symbol(bsym)):
+            return asym == bsym
+        case (.nil, .nil):
+            return true
+        default:
+            return false
+    }
+}
+
 @MainActor
 let global: LispEnvironment = {
     
@@ -249,19 +273,136 @@ let global: LispEnvironment = {
         for value in args.dropFirst() {
             let num = try LispNumeric(value)
             switch (first, num) {
-            case let (.integer(a), .integer(b)):
-                if a != b { return .nil }
-            case let (.float(a), .float(b)):
-                if a != b { return .nil }
-            case let (.integer(a), .float(b)):
-                if Double(a) != b { return .nil }
-            case let (.float(a), .integer(b)):
-                if a != Double(b) { return .nil }
-            default:
-                throw LispError.eval("=: unsupported numeric types")
+                case let (.integer(a), .integer(b)):
+                    if a != b { return .nil }
+                case let (.float(a), .float(b)):
+                    if a != b { return .nil }
+                case let (.integer(a), .float(b)):
+                    if Double(a) != b { return .nil }
+                case let (.float(a), .integer(b)):
+                    if a != Double(b) { return .nil }
+                default:
+                    throw LispError.eval("=: unsupported numeric types")
             }
         }
         return .t
+    }))
+    
+    env.define(LispSymbol(name: "<", package: kCommonLisp), value: .function({ args in
+        if args.count <= 1 {
+            return .t // true for 0 or 1 arguments
+        }
+        var prev = try LispNumeric(args[0])
+        for value in args.dropFirst() {
+            let next = try LispNumeric(value)
+            switch (prev, next) {
+            case let (.integer(a), .integer(b)):
+                if !(a < b) { return .nil }
+            case let (.float(a), .float(b)):
+                if !(a < b) { return .nil }
+            case let (.integer(a), .float(b)):
+                if !(Double(a) < b) { return .nil }
+            case let (.float(a), .integer(b)):
+                if !(a < Double(b)) { return .nil }
+            default:
+                throw LispError.eval("<: unsupported numeric types")
+            }
+            prev = next
+        }
+        return .t
+    }))
+
+    env.define(LispSymbol(name: ">", package: kCommonLisp), value: .function({ args in
+        if args.count <= 1 {
+            return .t // true for 0 or 1 arguments
+        }
+        var prev = try LispNumeric(args[0])
+        for value in args.dropFirst() {
+            let next = try LispNumeric(value)
+            switch (prev, next) {
+                case let (.integer(a), .integer(b)):
+                    if !(a > b) { return .nil }
+                case let (.float(a), .float(b)):
+                    if !(a > b) { return .nil }
+                case let (.integer(a), .float(b)):
+                    if !(Double(a) > b) { return .nil }
+                case let (.float(a), .integer(b)):
+                    if !(a > Double(b)) { return .nil }
+                default:
+                    throw LispError.eval(">: unsupported numeric types")
+            }
+            prev = next
+        }
+        return .t
+    }))
+    
+    env.define(LispSymbol(name: "<=", package: kCommonLisp), value: .function({ args in
+        if args.count <= 1 {
+            return .t // true for 0 or 1 arguments
+        }
+        var prev = try LispNumeric(args[0])
+        for value in args.dropFirst() {
+            let next = try LispNumeric(value)
+            switch (prev, next) {
+                case let (.integer(a), .integer(b)):
+                    if !(a <= b) { return .nil }
+                case let (.float(a), .float(b)):
+                    if !(a <= b) { return .nil }
+                case let (.integer(a), .float(b)):
+                    if !(Double(a) <= b) { return .nil }
+                case let (.float(a), .integer(b)):
+                    if !(a <= Double(b)) { return .nil }
+                default:
+                    throw LispError.eval("<=: unsupported numeric types")
+            }
+            prev = next
+        }
+        return .t
+    }))
+    
+    env.define(LispSymbol(name: ">=", package: kCommonLisp), value: .function({ args in
+        if args.count <= 1 {
+            return .t // true for 0 or 1 arguments
+        }
+        var prev = try LispNumeric(args[0])
+        for value in args.dropFirst() {
+            let next = try LispNumeric(value)
+            switch (prev, next) {
+                case let (.integer(a), .integer(b)):
+                    if !(a >= b) { return .nil }
+                case let (.float(a), .float(b)):
+                    if !(a >= b) { return .nil }
+                case let (.integer(a), .float(b)):
+                    if !(Double(a) >= b) { return .nil }
+                case let (.float(a), .integer(b)):
+                    if !(a >= Double(b)) { return .nil }
+                default:
+                    throw LispError.eval(">=: unsupported numeric types")
+            }
+            prev = next
+        }
+        return .t
+    }))
+
+    env.define(LispSymbol(name: "EQ", package: kCommonLisp), value: .function({ args in
+        guard args.count == 2 else {
+            throw LispError.arity(expected: 2, got: args.count)
+        }
+        return args[0] == args[1] ? .t : .nil
+    }))
+
+    env.define(LispSymbol(name: "EQL", package: kCommonLisp), value: .function({ args in
+        guard args.count == 2 else {
+            throw LispError.arity(expected: 2, got: args.count)
+        }
+        return lispEql(args[0], args[1]) ? .t : .nil
+    }))
+
+    env.define(LispSymbol(name: "EQUAL", package: kCommonLisp), value: .function({ args in
+        guard args.count == 2 else {
+            throw LispError.arity(expected: 2, got: args.count)
+        }
+        return lispEqual(args[0], args[1]) ? .t : .nil
     }))
     
     env.define(LispSymbol(name: "LIST", package: kCommonLisp), value: .function({ args in
