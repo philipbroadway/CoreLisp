@@ -165,6 +165,52 @@ let global: LispEnvironment = {
         }
     }))
     
+    env.define(LispSymbol(name: "MIN", package: kCommonLisp), value: .function({ args in
+        guard !args.isEmpty else {
+            throw LispError.arity(expected: 1, got: 0)
+        }
+        var minValue = try LispNumeric(args[0])
+        for arg in args.dropFirst() {
+            let num = try LispNumeric(arg)
+            switch (minValue, num) {
+            case let (.integer(a), .integer(b)):
+                minValue = .integer(Swift.min(a, b))
+            case let (.float(a), .float(b)):
+                minValue = .float(Swift.min(a, b))
+            case let (.integer(a), .float(b)):
+                minValue = .float(Swift.min(Double(a), b))
+            case let (.float(a), .integer(b)):
+                minValue = .float(Swift.min(a, Double(b)))
+            default:
+                throw LispError.eval("MIN: unsupported numeric types")
+            }
+        }
+        return minValue.toLispValue()
+    }))
+    
+    env.define(LispSymbol(name: "MAX", package: kCommonLisp), value: .function({ args in
+        guard !args.isEmpty else {
+            throw LispError.arity(expected: 1, got: 0)
+        }
+        var maxValue = try LispNumeric(args[0])
+        for arg in args.dropFirst() {
+            let num = try LispNumeric(arg)
+            switch (maxValue, num) {
+            case let (.integer(a), .integer(b)):
+                maxValue = .integer(Swift.max(a, b))
+            case let (.float(a), .float(b)):
+                maxValue = .float(Swift.max(a, b))
+            case let (.integer(a), .float(b)):
+                maxValue = .float(Swift.max(Double(a), b))
+            case let (.float(a), .integer(b)):
+                maxValue = .float(Swift.max(a, Double(b)))
+            default:
+                throw LispError.eval("MAX: unsupported numeric types")
+            }
+        }
+        return maxValue.toLispValue()
+    }))
+    
     env.define(LispSymbol(name: "LIST", package: kCommonLisp), value: .function({ args in
         return args.reversed().reduce(.nil) { acc, next in
             .cons(car: next, cdr: acc)
