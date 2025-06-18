@@ -11,7 +11,7 @@ public func tokenize(_ input: String) -> [String] {
     var tokens: [String] = []
     var current = ""
 
-    var chars = Array(input)
+    let chars = Array(input)
     var i = 0
 
     while i < chars.count {

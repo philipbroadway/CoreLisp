@@ -15,7 +15,7 @@ public enum ParseError: Error {
 
 public func makeQuoteForm(_ name: String, tokens: inout [String]) throws -> LispValue {
     let quoted = try parse(tokens: &tokens)
-    let sym = LispValue.symbol(LispSymbol(name: name, package: "COMMON-LISP"))
+    let sym = LispValue.symbol(LispSymbol(name: name, package: kCommonLisp))
     return .cons(car: sym, cdr: .cons(car: quoted, cdr: .nil))
 }
 
@@ -72,10 +72,10 @@ public func parseAtom(_ token: String) -> LispValue {
     } else if token.uppercased() == "NIL" {
         return .nil
     } else if token.uppercased() == "T" {
-        return .symbol(LispSymbol(name: "T", package: "COMMON-LISP"))
+        return .symbol(LispSymbol(name: "T", package: kCommonLisp))
     } else if token.hasPrefix(":") {
         return .symbol(LispSymbol(name: String(token.dropFirst()), package: "KEYWORD"))
     } else {
-        return .symbol(LispSymbol(name: token.uppercased(), package: "COMMON-LISP"))
+        return .symbol(LispSymbol(name: token.uppercased(), package: kCommonLisp))
     }
 }

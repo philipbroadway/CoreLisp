@@ -1,11 +1,13 @@
 // The Swift Programming Language
 // https://docs.swift.org/swift-book
 
+public let kCommonLisp = "COMMON-LISP"
+
 @MainActor
 let global: LispEnvironment = {
     let env = LispEnvironment()
     
-    env.define(LispSymbol(name: "+", package: "COMMON-LISP"), value:
+    env.define(LispSymbol(name: "+", package: kCommonLisp), value:
         .function { args in
             let nums = try args.map {
                 guard case let .number(n) = $0 else {
@@ -20,7 +22,7 @@ let global: LispEnvironment = {
             return .number(.float(nums.reduce(0, +)))
         })
     
-    env.define(LispSymbol(name: "-", package: "COMMON-LISP"), value: .function({ args in
+    env.define(LispSymbol(name: "-", package: kCommonLisp), value: .function({ args in
         let nums = try args.map {
             guard case let .number(n) = $0 else {
                 throw EvalError.invalidArgument("Expected number")
@@ -45,4 +47,3 @@ let global: LispEnvironment = {
     
     return env
 }()
-
