@@ -53,6 +53,29 @@ public func car2(_ list: LispValue) throws -> LispValue? {
     return car2
 }
 
+public func car3(_ list: LispValue) throws -> LispValue? {
+    guard case let .cons(_, cdr) = list else { return nil }
+    guard case let .cons(_, cdr2) = cdr else { return nil }
+    guard case let .cons(car3, _) = cdr2 else { return nil }
+    return car3
+}
+
+public func carN(_ list: LispValue, n: Int) throws -> LispValue {
+    var current = list
+    var index = 0
+    while index < n {
+        guard case let .cons(_, cdr) = current else {
+            throw EvalError.invalidForm("Expected at least \(n + 1) elements")
+        }
+        current = cdr
+        index += 1
+    }
+    guard case let .cons(car, _) = current else {
+        throw EvalError.invalidForm("Expected at least \(n + 1) elements")
+    }
+    return car
+}
+
 public func listToArray(_ list: LispValue) throws -> [LispValue] {
     var result: [LispValue] = []
     var current = list
@@ -89,6 +112,16 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                         let val = try car2(cdr).map { try eval($0, in: env) } ?? .nil
                         env.define(s, value: val)
                         return val
+                    case "IF":
+                        let testExpr = try car1(cdr)
+                            let thenExpr = try car2(cdr)
+                            let elseExpr = try car3(cdr) // can be nil
+                            let testValue = try eval(testExpr, in: env)
+                            if !testValue.isNil {
+                                return try thenExpr.map { try eval($0, in: env) } ?? .nil
+                            } else {
+                                return try elseExpr.map { try eval($0, in: env) } ?? .nil
+                            }
                     default:
                         break
                 }
@@ -122,4 +155,3 @@ public enum EvalError: Error, CustomStringConvertible {
         }
     }
 }
-

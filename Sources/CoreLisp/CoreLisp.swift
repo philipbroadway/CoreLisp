@@ -29,6 +29,8 @@ let global: LispEnvironment = {
     
     let env = LispEnvironment()
     
+    env.define(LispSymbol(name: "T", package: kCommonLisp), value: .t)
+    
     env.define(
         LispSymbol(name: "+", package: kCommonLisp),
         value: .function { args in
