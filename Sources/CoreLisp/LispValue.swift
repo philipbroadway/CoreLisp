@@ -12,6 +12,16 @@ public enum LispNumber {
     case ratio(numerator: Int, denominator: Int)
 }
 
+extension LispNumber {
+    func asNumeric() -> LispNumeric {
+        switch self {
+            case .integer(let i): return .integer(i)
+            case .float(let f): return .float(f)
+            case .ratio(let n, let d): return .ratio(n, d)
+        }
+    }
+}
+
 public struct LispSymbol: Hashable {
     let name: String
     let package: String // default: "COMMON-LISP", "USER", etc.

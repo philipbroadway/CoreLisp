@@ -5,81 +5,80 @@ let global: LispEnvironment = {
     
     let env = LispEnvironment()
     
-    env.define(LispSymbol(name: "+", package: kCommonLisp), value:
-        .function { args in
-            let nums = try args.map {
-                guard case let .number(n) = $0 else {
-                    throw EvalError.invalidArgument("Expected number")
-                }
-                switch n {
-                    case .integer(let i): return Double(i)
-                    case .float(let f): return f
-                    case .ratio(let n, let d): return Double(n) / Double(d)
-                }
+    env.define(
+        LispSymbol(name: "+", package: kCommonLisp),
+        value: .function { args in
+
+            if args.isEmpty {
+                return .number(.integer(0))
             }
-            return .number(.float(nums.reduce(0, +)))
-        })
+
+            var acc = try LispNumeric(args[0])
+            for value in args.dropFirst() {
+                acc = numericAdd(acc, try LispNumeric(value))
+            }
+
+            return acc.toLispValue()
+        }
+    )
     
-    env.define(LispSymbol(name: "-", package: kCommonLisp), value: .function({ args in
-        let nums = try args.map {
-            guard case let .number(n) = $0 else {
-                throw EvalError.invalidArgument("Expected number")
+    env.define(
+        LispSymbol(name: "-", package: kCommonLisp),
+        value: .function { args in
+
+            if args.isEmpty {
+                return .number(.integer(0))
             }
-            switch n {
-                case .integer(let i): return Double(i)
-                case .float(let f): return f
-                case .ratio(let n, let d): return Double(n) / Double(d)
+
+            if args.count == 1 {
+                let neg = numericSub(.integer(0), try LispNumeric(args[0]))
+                return neg.toLispValue()
             }
+
+            var acc = try LispNumeric(args[0])
+            for v in args.dropFirst() {
+                acc = numericSub(acc, try LispNumeric(v))
+            }
+            return acc.toLispValue()
         }
-        guard let first = nums.first else {
-            throw EvalError.invalidArgument("Expected at least one number")
-        }
-        let result: Double
-        if nums.count == 1 {
-            result = -first
-        } else {
-            result = nums.dropFirst().reduce(first, -)
-        }
-        return .number(.float(result))
-    }))
+    )
     
-    env.define(LispSymbol(name: "*", package: kCommonLisp), value: .function({ args in
-        
-        let nums = try args.map {
-            guard case let .number(n) = $0 else {
-                throw EvalError.invalidArgument("Expected number")
+    env.define(
+        LispSymbol(name: "*", package: kCommonLisp),
+        value: .function { args in
+            
+            if args.isEmpty {
+                return .number(.integer(1))
             }
-            switch n {
-                case .integer(let i): return Double(i)
-                case .float(let f): return f
-                case .ratio(let n, let d): return Double(n) / Double(d)
+
+            var acc = try LispNumeric(args[0])
+            for v in args.dropFirst() {
+                acc = numericMul(acc, try LispNumeric(v))
             }
+            return acc.toLispValue()
         }
-        return .number(.float(nums.reduce(1, *)))
-    }))
+    )
     
-    env.define(LispSymbol(name: "/", package: kCommonLisp), value: .function({ args in
-        let nums = try args.map {
-            guard case let .number(n) = $0 else {
-                throw EvalError.invalidArgument("Expected number")
+    env.define(
+        LispSymbol(name: "/", package: kCommonLisp),
+        value: .function { args in
+            // (/)  ⇒ 1
+            if args.isEmpty {
+                return .number(.integer(1))
             }
-            switch n {
-                case .integer(let i): return Double(i)
-                case .float(let f): return f
-                case .ratio(let n, let d): return Double(n) / Double(d)
+
+            if args.count == 1 {
+                let r = numericDiv(.integer(1), try LispNumeric(args[0]))
+                return r.asCanonical().toLispValue()
             }
+
+            var acc = try LispNumeric(args[0])
+            for v in args.dropFirst() {
+                acc = numericDiv(acc, try LispNumeric(v))
+            }
+            return acc.asCanonical().toLispValue()
         }
-        guard let first = nums.first else {
-            throw EvalError.invalidArgument("Expected at least one number")
-        }
-        let result: Double
-        if nums.count == 1 {
-            result = 1 / first
-        } else {
-            result = nums.dropFirst().reduce(first, /)
-        }
-        return .number(.float(result))
-    }))
+    )
     
     return env
 }()
