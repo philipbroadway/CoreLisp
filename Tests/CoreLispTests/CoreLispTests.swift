@@ -1,6 +1,19 @@
 import Testing
 @testable import CoreLisp
 
-@Test func example() async throws {
-    // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+@MainActor
+@Test func addition() async throws {
+    var tokens = Array(tokenize("(+ 1 2)").reversed())
+    let expr = try parse(tokens: &tokens)
+    print(expr)
+    
+    let result = try eval(expr, in: global)
+    print(result)
+    
+    #expect(result.description == "3.0")
+}
+
+@MainActor
+@Test func subtraction() async throws {
+    
 }
