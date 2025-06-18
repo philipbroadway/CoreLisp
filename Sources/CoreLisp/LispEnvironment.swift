@@ -122,6 +122,30 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                             } else {
                                 return try elseExpr.map { try eval($0, in: env) } ?? .nil
                             }
+                    case "COND":
+                        var clauseList = cdr
+                        while case let .cons(clause, rest) = clauseList {
+                            guard case let .cons(testExpr, results) = clause else {
+                                throw EvalError.invalidForm("COND clause must be a list")
+                            }
+                            let testValue = try eval(testExpr, in: env)
+                            if !testValue.isNil {
+                                // Evaluate result forms, if any
+                                if case .nil = results {
+                                    return testValue
+                                } else {
+                                    var resultVal: LispValue = .nil
+                                    var currentResults = results
+                                    while case let .cons(resultExpr, more) = currentResults {
+                                        resultVal = try eval(resultExpr, in: env)
+                                        currentResults = more
+                                    }
+                                    return resultVal
+                                }
+                            }
+                            clauseList = rest
+                        }
+                        return .nil
                     default:
                         break
                 }
@@ -155,3 +179,4 @@ public enum EvalError: Error, CustomStringConvertible {
         }
     }
 }
+
