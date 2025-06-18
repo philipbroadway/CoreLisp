@@ -59,3 +59,19 @@ func quoteTest() async throws {
     }
 }
 
+@MainActor
+@Test func division() async throws {
+    
+    let tests = ["(/ 1 1)", "(/ 2 1)"]
+    let answers = ["1.0", "2.0"]
+    
+    for (index, test) in tests.enumerated() {
+        
+        var tokens = Array(tokenize(test).reversed())
+        let expr = try parse(tokens: &tokens)
+        
+        let result = try eval(expr, in: global)
+        #expect(result.description == answers[index])
+    }
+}
+
