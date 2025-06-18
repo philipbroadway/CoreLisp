@@ -76,9 +76,9 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
             return try env.get(sym)
 
         case .cons(let car, let cdr):
-            // Handle special forms like QUOTE, SETQ, DEFINE
+            //TODO: Handle special forms like QUOTE, SETQ, DEFINE
             guard let head = try? eval(car, in: env) else {
-                throw EvalError.invalidForm("Bad function/operator")
+                throw EvalError.invalidForm("Bad function/operator `\(car)`")
             }
 
             switch head {

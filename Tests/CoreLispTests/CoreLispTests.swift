@@ -33,3 +33,19 @@ import Testing
         #expect(result.description == answers[index])
     }
 }
+
+@MainActor
+@Test func multiplication() async throws {
+    
+    let tests = ["(* 1 2)", "(* 2 2)"]
+    let answers = ["2.0", "4.0"]
+    
+    for (index, test) in tests.enumerated() {
+        
+        var tokens = Array(tokenize(test).reversed())
+        let expr = try parse(tokens: &tokens)
+        
+        let result = try eval(expr, in: global)
+        #expect(result.description == answers[index])
+    }
+}
