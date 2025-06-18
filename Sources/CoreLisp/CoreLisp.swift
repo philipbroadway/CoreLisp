@@ -463,5 +463,65 @@ let global: LispEnvironment = {
         }
     }))
     
+    env.define(LispSymbol(name: "ATOM", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        switch args[0] {
+            case .cons:
+                return .nil
+            default:
+                return .t
+        }
+    }))
+
+    env.define(LispSymbol(name: "LISTP", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        switch args[0] {
+            case .cons, .nil:
+                return .t
+            default:
+                return .nil
+        }
+    }))
+
+    env.define(LispSymbol(name: "NUMBERP", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        switch args[0] {
+            case .number:
+                return .t
+            default:
+                return .nil
+        }
+    }))
+
+    env.define(LispSymbol(name: "SYMBOLP", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        switch args[0] {
+            case .symbol:
+                return .t
+            default:
+                return .nil
+        }
+    }))
+    
+    env.define(LispSymbol(name: "NULL", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        switch args[0] {
+            case .nil:
+                return .t
+            default:
+                return .nil
+        }
+    }))
+
     return env
 }()

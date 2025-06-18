@@ -202,11 +202,11 @@ func listRegression() async throws {
 @MainActor
 @Test func typePredicates() async throws {
     let cases: [(String, String)] = [
-        // ("(atom 'a)", "T"),
-        // ("(listp '(1 2))", "T"),
-        // ("(null '())", "T"),
-        // ("(numberp 42)", "T"),
-        // ("(symbolp 'x)", "T"),
+         ("(atom 'a)", "T"),
+         ("(listp '(1 2))", "T"),
+         ("(null '())", "T"),
+         ("(numberp 42)", "T"),
+         ("(symbolp 'x)", "T"),
     ]
     try await evaluateCases(cases)
 }
