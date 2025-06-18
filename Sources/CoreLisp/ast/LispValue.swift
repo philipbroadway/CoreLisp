@@ -10,12 +10,11 @@ public enum LispNumber {
     case integer(Int)
     case float(Double)
     case ratio(numerator: Int, denominator: Int)
-    // Extend later with .bigInt or .complex if needed
 }
 
 public struct LispSymbol: Hashable {
     let name: String
-    let package: String // e.g., "COMMON-LISP", "USER", etc.
+    let package: String // default: "COMMON-LISP", "USER", etc.
     var isKeyword: Bool {
         package == "KEYWORD"
     }
@@ -28,7 +27,7 @@ indirect public enum LispValue {
     case character(Character)
     case cons(car: LispValue, cdr: LispValue)
     case function(([LispValue]) throws -> LispValue)
-    case `nil` // Represents both empty list and false in CL
+    case `nil`
 }
 
 extension LispValue: CustomStringConvertible {
