@@ -241,6 +241,29 @@ let global: LispEnvironment = {
         }
     }))
     
+    env.define(LispSymbol(name: "=", package: kCommonLisp), value: .function({ args in
+        if args.count <= 1 {
+            return .t // true for 0 or 1 arguments
+        }
+        let first = try LispNumeric(args[0])
+        for value in args.dropFirst() {
+            let num = try LispNumeric(value)
+            switch (first, num) {
+            case let (.integer(a), .integer(b)):
+                if a != b { return .nil }
+            case let (.float(a), .float(b)):
+                if a != b { return .nil }
+            case let (.integer(a), .float(b)):
+                if Double(a) != b { return .nil }
+            case let (.float(a), .integer(b)):
+                if a != Double(b) { return .nil }
+            default:
+                throw LispError.eval("=: unsupported numeric types")
+            }
+        }
+        return .t
+    }))
+    
     env.define(LispSymbol(name: "LIST", package: kCommonLisp), value: .function({ args in
         return args.reversed().reduce(.nil) { acc, next in
             .cons(car: next, cdr: acc)

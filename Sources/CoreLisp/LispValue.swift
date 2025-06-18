@@ -45,6 +45,8 @@ extension LispValue {
         if case .nil = self { return true }
         return false
     }
+
+    @MainActor public static let t = LispValue.symbol(LispSymbol(name: "T", package: kCommonLisp))
 }
 
 extension LispValue: CustomStringConvertible {
@@ -85,3 +87,4 @@ public func consToString(_ cons: LispValue) -> String {
         return "(" + parts.joined(separator: " ") + " . " + current.description + ")"
     }
 }
+
