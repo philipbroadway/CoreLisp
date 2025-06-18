@@ -179,7 +179,7 @@ func listRegression() async throws {
          ("(min 1 2 3)", "1"),
          ("(max 1 2 3)", "3"),
          ("(1+ 41)", "42"),
-//         ("(1- 42)", "41"),
+         ("(1- 42)", "41"),
     ]
     try await evaluateCases(cases)
 }
@@ -187,7 +187,7 @@ func listRegression() async throws {
 @MainActor
 @Test func comparisonCore() async throws {
     let cases: [(String, String)] = [
-        // ("(= 3 3)", "T"),
+         ("(= 3 3)", "T"),
         // ("(< 1 2)", "T"),
         // ("(> 2 1)", "T"),
         // ("(<= 2 2)", "T"),

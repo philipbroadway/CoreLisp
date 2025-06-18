@@ -211,6 +211,36 @@ let global: LispEnvironment = {
         return maxValue.toLispValue()
     }))
     
+    env.define(LispSymbol(name: "1+", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        let num = try LispNumeric(args[0])
+        switch num {
+        case .integer(let value):
+            return .number(.integer(value + 1))
+        case .float(let value):
+            return .number(.float(value + 1.0))
+        default:
+            throw LispError.eval("1+ expects a numeric argument, got: \(args[0])")
+        }
+    }))
+    
+    env.define(LispSymbol(name: "1-", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        let num = try LispNumeric(args[0])
+        switch num {
+        case .integer(let value):
+            return .number(.integer(value - 1))
+        case .float(let value):
+            return .number(.float(value - 1.0))
+        default:
+            throw LispError.eval("1- expects a numeric argument, got: \(args[0])")
+        }
+    }))
+    
     env.define(LispSymbol(name: "LIST", package: kCommonLisp), value: .function({ args in
         return args.reversed().reduce(.nil) { acc, next in
             .cons(car: next, cdr: acc)
