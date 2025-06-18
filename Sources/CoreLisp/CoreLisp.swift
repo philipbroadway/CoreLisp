@@ -80,5 +80,63 @@ let global: LispEnvironment = {
         }
     )
     
+    env.define(LispSymbol(name: "LIST", package: kCommonLisp), value: .function({ args in
+        return args.reversed().reduce(.nil) { acc, next in
+            .cons(car: next, cdr: acc)
+        }
+    }))
+    
+    env.define(LispSymbol(name: "CONS", package: kCommonLisp), value: .function({ args in
+        guard args.count == 2 else {
+            throw LispError.arity(expected: 2, got: args.count)
+        }
+        return .cons(car: args[0], cdr: args[1])
+    }))
+
+    env.define(LispSymbol(name: "CDR", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+
+        guard case let .cons(_, cdr) = args[0] else {
+            throw LispError.eval("CDR expected a cons cell, got \(args[0])")
+        }
+
+        return cdr
+    }))
+    
+    env.define(LispSymbol(name: "CAR", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+
+        guard case let .cons(car, _) = args[0] else {
+            throw LispError.eval("CAR expected a cons cell, got \(args[0])")
+        }
+
+        return car
+    }))
+    
+    env.define(LispSymbol(name: "LENGTH", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+
+        var count = 0
+        var current = args[0]
+
+        while true {
+            switch current {
+            case .cons(_, let cdr):
+                count += 1
+                current = cdr
+            case .nil:
+                return .number(.integer(count))
+            default:
+                throw LispError.eval("LENGTH expects a proper list, got: \(current)")
+            }
+        }
+    }))
+    
     return env
 }()

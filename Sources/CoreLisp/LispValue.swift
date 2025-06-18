@@ -40,6 +40,13 @@ indirect public enum LispValue {
     case `nil`
 }
 
+extension LispValue {
+    var isNil: Bool {
+        if case .nil = self { return true }
+        return false
+    }
+}
+
 extension LispValue: CustomStringConvertible {
     public var description: String {
         switch self {
@@ -60,7 +67,7 @@ extension LispValue: CustomStringConvertible {
             case .function:
                 return "#<function>"
             case .nil:
-                return "NIL"
+                return "()"
         }
     }
 }

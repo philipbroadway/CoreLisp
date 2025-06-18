@@ -13,6 +13,24 @@ public enum LispParseError: Error {
     case expectedDot
 }
 
+
+public enum LispError: Error, CustomStringConvertible, @unchecked Sendable {
+    case arity(expected: Int, got: Int)
+    case eval(String)
+    case typeError(expected: String, got: LispValue)
+
+    public var description: String {
+        switch self {
+        case let .arity(expected, got):
+            return "Arity error: expected \(expected), got \(got)"
+        case let .eval(message):
+            return "Evaluation error: \(message)"
+        case let .typeError(expected, got):
+            return "Type error: expected \(expected), got \(got)"
+        }
+    }
+}
+
 public func makeQuoteForm(_ name: String, tokens: inout [String]) throws -> LispValue {
     let quoted = try parse(tokens: &tokens)
     let sym = LispValue.symbol(LispSymbol(name: name, package: kCommonLisp))

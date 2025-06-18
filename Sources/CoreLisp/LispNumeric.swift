@@ -42,45 +42,53 @@ func numericAdd(_ a: LispNumeric, _ b: LispNumeric) -> LispNumeric {
     switch (a, b) {
         case let (.integer(x), .integer(y)):
             return .integer(x + y)
-        case let (.ratio(xn, xd), .ratio(yn, yd)):
-            return .ratio(xn * yd + yn * xd, xd * yd)
+        case let (.ratio(n1, d1), .ratio(n2, d2)):
+            return makeRatio(n1 * d2 + n2 * d1, d1 * d2)
+        case let (.integer(x), .ratio(n, d)),
+             let (.ratio(n, d), .integer(x)):
+            return makeRatio(n + x * d, d)
         default:
             return .float(a.toDouble() + b.toDouble())
     }
 }
 
-public func numericSub(_ a: LispNumeric, _ b: LispNumeric) -> LispNumeric {
+func numericSub(_ a: LispNumeric, _ b: LispNumeric) -> LispNumeric {
     switch (a, b) {
+
         case let (.integer(x), .integer(y)):
             return .integer(x - y)
-        case let (.float(x), .integer(y)):
-            return .float(x - Double(y))
-        case let (.integer(x), .float(y)):
-            return .float(Double(x) - y)
-        case let (.float(x), .float(y)):
-            return .float(x - y)
-        case let (.ratio(xn, xd), .integer(y)):
-            let n = xn - y * xd
-            return simplifyRatio(numerator: n, denominator: xd).asNumeric()
-        case let (.integer(x), .ratio(yn, yd)):
-            let n = x * yd - yn
-            return simplifyRatio(numerator: n, denominator: yd).asNumeric()
+
         case let (.ratio(xn, xd), .ratio(yn, yd)):
-            let n = xn * yd - yn * xd
-            let d = xd * yd
-            return simplifyRatio(numerator: n, denominator: d).asNumeric()
-        case let (.ratio(_, _), .float(y)):
-            return .float(a.toDouble() - y)
-        case let (.float(x), .ratio(_, _)):
-            return .float(x - b.toDouble())
+            // x₁/y₁ − x₂/y₂ = (x₁·y₂ − x₂·y₁) / (y₁·y₂)
+            return makeRatio(xn * yd - yn * xd, xd * yd)
+
+        case let (.integer(x), .ratio(yn, yd)):
+            // x − (yₙ / y_d) = (x·y_d − yₙ) / y_d
+            return makeRatio(x * yd - yn, yd)
+
+        case let (.ratio(xn, xd), .integer(y)):
+            // (xₙ / x_d) − y = (xₙ − y·x_d) / x_d
+            return makeRatio(xn - y * xd, xd)
+
+        default:
+            return .float(a.toDouble() - b.toDouble())
     }
 }
+
 func numericMul(_ a: LispNumeric, _ b: LispNumeric) -> LispNumeric {
     switch (a, b) {
+
         case let (.integer(x), .integer(y)):
             return .integer(x * y)
+
         case let (.ratio(xn, xd), .ratio(yn, yd)):
-            return .ratio(xn * yn, xd * yd)
+            // (xₙ / x_d) · (yₙ / y_d) = (xₙ·yₙ) / (x_d·y_d)
+            return makeRatio(xn * yn, xd * yd)
+
+        case let (.integer(x), .ratio(n, d)),
+             let (.ratio(n, d), .integer(x)):
+            return makeRatio(x * n, d)
+
         default:
             return .float(a.toDouble() * b.toDouble())
     }
@@ -88,10 +96,21 @@ func numericMul(_ a: LispNumeric, _ b: LispNumeric) -> LispNumeric {
 
 func numericDiv(_ a: LispNumeric, _ b: LispNumeric) -> LispNumeric {
     switch (a, b) {
+        case let (_, .integer(0)), let (_, .ratio(0, _)):
+            fatalError("Division by zero")
+
         case let (.integer(x), .integer(y)):
-            return .ratio(x, y)
-        case let (.ratio(xn, xd), .ratio(yn, yd)):
-            return .ratio(xn * yd, xd * yn)
+            return makeRatio(x, y)
+
+        case let (.ratio(n1, d1), .ratio(n2, d2)):
+            return makeRatio(n1 * d2, d1 * n2)
+
+        case let (.integer(x), .ratio(n, d)):
+            return makeRatio(x * d, n)
+
+        case let (.ratio(n, d), .integer(x)):
+            return makeRatio(n, d * x)
+
         default:
             return .float(a.toDouble() / b.toDouble())
     }
@@ -117,14 +136,22 @@ public func simplifyRatio(numerator: Int, denominator: Int) -> LispNumber {
 }
 
 public func greatestCommonDivisor(_ a: Int, _ b: Int) -> Int {
-    var a = abs(a)
-    var b = abs(b)
-    while b != 0 {
-        let temp = b
-        b = a % b
-        a = temp
-    }
-    return a
+    var x = abs(a), y = abs(b)
+    while y != 0 { (x, y) = (y, x % y) }
+    return x
+}
+
+func makeRatio(_ n: Int, _ d: Int) -> LispNumeric {
+    precondition(d != 0, "Division by zero")
+
+    let (num, den) = d < 0 ? (-n, -d) : (n, d)
+    let g          = greatestCommonDivisor(num, den)
+
+    let reducedNum = num / g
+    let reducedDen = den / g
+    return reducedDen == 1
+        ? .integer(reducedNum)
+        : .ratio(reducedNum, reducedDen)
 }
 
 public extension LispNumeric {
