@@ -229,7 +229,7 @@ func listRegression() async throws {
     let cases: [(String, String)] = [
          ("(let ((x 2)) x)", "2"),
          ("(let* ((x 2) (y (+ x 1))) y)", "3"),
-        // ("(setq x 5)", "5"),
+         ("(setq x 5)", "5"),
         // ("((lambda (x) (+ x 1)) 41)", "42"),
         // ("(defun add1 (x) (+ x 1)) (add1 41)", "42"),
     ]

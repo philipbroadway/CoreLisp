@@ -106,13 +106,22 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                     case "QUOTE":
                         return try car1(cdr)
                     case "SETQ":
-                        let nameSym = try car1(cdr)
-                        guard case let .symbol(s) = nameSym else {
-                            throw EvalError.invalidArgument("SETQ expects symbol")
+                        var lastValue: LispValue = .nil
+                        var args = cdr
+                        while case let .cons(symExpr, rest1) = args, case let .cons(valExpr, rest2) = rest1 {
+                            guard case let .symbol(s) = symExpr else {
+                                throw EvalError.invalidArgument("SETQ expects symbol")
+                            }
+                            let val = try eval(valExpr, in: env)
+                            env.define(s, value: val)
+                            lastValue = val
+                            args = rest2
                         }
-                        let val = try car2(cdr).map { try eval($0, in: env) } ?? .nil
-                        env.define(s, value: val)
-                        return val
+                        if case .nil = args {
+                            return lastValue
+                        } else {
+                            throw EvalError.invalidForm("SETQ expects pairs of symbol and value")
+                        }
                     case "IF":
                         let testExpr = try car1(cdr)
                         let thenExpr = try car2(cdr)
