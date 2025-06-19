@@ -221,6 +221,46 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                             bindList = rest
                         }
                         return try eval(body, in: currentEnv)
+                    case "LAMBDA":
+                        // Extract parameter list
+                        let paramsList = try car1(cdr)
+                        var params: [LispSymbol] = []
+                        var temp = paramsList
+                        while case let .cons(symExpr, rest) = temp {
+                            guard case let .symbol(s) = symExpr else {
+                                throw EvalError.invalidArgument("LAMBDA params must be symbols")
+                            }
+                            params.append(s)
+                            temp = rest
+                        }
+                        // Everything after params is the body
+                        let bodyList: LispValue
+                        if case let .cons(_, rest) = cdr {
+                            bodyList = rest
+                        } else {
+                            bodyList = .nil
+                        }
+                        var bodyExprs: [LispValue] = []
+                        var curr = bodyList
+                        while case let .cons(expr, more) = curr {
+                            bodyExprs.append(expr)
+                            curr = more
+                        }
+                        let closureEnv = env
+                        return .function { args in
+                            if args.count != params.count {
+                                throw EvalError.invalidArgument("LAMBDA expected \(params.count) args, got \(args.count)")
+                            }
+                            let localEnv = LispEnvironment(parent: closureEnv)
+                            for (param, value) in zip(params, args) {
+                                localEnv.define(param, value: value)
+                            }
+                            var result: LispValue = .nil
+                            for expr in bodyExprs {
+                                result = try eval(expr, in: localEnv)
+                            }
+                            return result
+                        }
                     default:
                         break
                 }
