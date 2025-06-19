@@ -90,6 +90,7 @@ public func listToArray(_ list: LispValue) throws -> [LispValue] {
     }
 }
 
+@MainActor
 public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValue {
     switch value {
         case .number, .string, .character, .function, .nil:
@@ -146,6 +147,33 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                             clauseList = rest
                         }
                         return .nil
+                    case "AND":
+                        var result: LispValue = .t
+                        var exprs = cdr
+                        while case let .cons(expr, rest) = exprs {
+                            result = try eval(expr, in: env)
+                            if result.isNil {
+                                return .nil
+                            }
+                            exprs = rest
+                        }
+                        return result
+                    case "OR":
+                        var exprs = cdr
+                        while case let .cons(expr, rest) = exprs {
+                            let result = try eval(expr, in: env)
+                            if !result.isNil {
+                                return result
+                            }
+                            exprs = rest
+                        }
+                        return .nil
+                    case "NOT":
+                        guard let arg = try car1(cdr) as LispValue? else {
+                            throw EvalError.invalidForm("NOT expects one argument")
+                        }
+                        let value = try eval(arg, in: env)
+                        return value.isNil ? .t : .nil
                     default:
                         break
                 }

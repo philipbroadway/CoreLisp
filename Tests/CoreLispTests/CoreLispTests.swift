@@ -217,9 +217,9 @@ func listRegression() async throws {
          ("(if t 1 2)", "1"),
          ("(if nil 1 2)", "2"),
          ("(cond ((= 1 2) 'no) ((= 2 2) 'yes))", "YES"),
-        // ("(and t t)", "T"),
-        // ("(or nil 'x)", "X"),
-        // ("(not nil)", "T"),
+         ("(and t t)", "T"),
+         ("(or nil 'x)", "X"),
+         ("(not nil)", "T"),
     ]
     try await evaluateCases(cases)
 }

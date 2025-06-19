@@ -111,3 +111,4 @@ public func consToString(_ cons: LispValue) -> String {
         return "(" + parts.joined(separator: " ") + " . " + current.description + ")"
     }
 }
+
