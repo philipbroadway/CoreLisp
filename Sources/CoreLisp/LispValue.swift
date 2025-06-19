@@ -10,9 +10,7 @@ public enum LispNumber: Equatable {
     case integer(Int)
     case float(Double)
     case ratio(numerator: Int, denominator: Int)
-}
-
-extension LispNumber {
+    
     func asNumeric() -> LispNumeric {
         switch self {
             case .integer(let i): return .integer(i)
@@ -88,7 +86,7 @@ extension LispValue: CustomStringConvertible {
                 return "\"\(s)\""
             case .character(let c):
                 return "#\\\(c)"
-            case .cons(let car, let cdr):
+            case .cons(_, _):
                 return consToString(self)
             case .function:
                 return "#<function>"
@@ -111,4 +109,3 @@ public func consToString(_ cons: LispValue) -> String {
         return "(" + parts.joined(separator: " ") + " . " + current.description + ")"
     }
 }
-

@@ -13,7 +13,6 @@ public enum LispParseError: Error {
     case expectedDot
 }
 
-
 public enum LispError: Error, CustomStringConvertible, @unchecked Sendable {
     case arity(expected: Int, got: Int)
     case eval(String)
