@@ -208,7 +208,7 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                     case "LET*":
                         let bindings = try car1(cdr)
                         let body = try car2(cdr) ?? .nil
-                        var currentEnv = LispEnvironment(parent: env)
+                        let currentEnv = LispEnvironment(parent: env)
                         var bindList = bindings
                         while case let .cons(binding, rest) = bindList {
                             guard case let .cons(symExpr, bindCdr) = binding,
@@ -307,6 +307,10 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                         }
                         env.define(fnName, value: fnValue)
                         return fnValue
+                    case "EVAL":
+                        let expr = try car1(cdr)
+                        let toEval = try eval(expr, in: env)
+                        return try eval(toEval, in: env)
                     default:
                         break
                 }
@@ -319,9 +323,6 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                 default:
                     throw EvalError.notAFunction
             }
-
-        default:
-            throw EvalError.invalidForm("Unexpected form")
     }
     // If value is a cons (list of forms), evaluate each in sequence and return the last result
     if case var .cons(expr, rest) = value {

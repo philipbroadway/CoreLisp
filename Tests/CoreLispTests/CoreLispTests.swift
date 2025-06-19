@@ -241,7 +241,7 @@ func listRegression() async throws {
     let cases: [(String, String)] = [
         // ("(funcall #'+ 1 2)", "3"),
         // ("(apply #'+ '(1 2))", "3"),
-        // ("(eval '(+ 1 2))", "3"),
+         ("(eval '(+ 1 2))", "3"),
     ]
     try await evaluateCases(cases)
 }
