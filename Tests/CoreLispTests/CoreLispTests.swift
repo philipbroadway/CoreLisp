@@ -239,7 +239,7 @@ func listRegression() async throws {
 @MainActor
 @Test func evalAndFuncall() async throws {
     let cases: [(String, String)] = [
-        // ("(funcall #'+ 1 2)", "3"),
+         ("(funcall #'+ 1 2)", "3"),
          ("(apply #'+ '(1 2))", "3"),
          ("(eval '(+ 1 2))", "3"),
     ]

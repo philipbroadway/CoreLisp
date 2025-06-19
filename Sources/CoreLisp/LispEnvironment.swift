@@ -323,6 +323,32 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                             throw EvalError.notAFunction
                         }
                         return try f(args)
+
+                    case "FUNCALL":
+                        let fnExpr = try car1(cdr)
+                        let argsList = try {
+                            var current = cdr
+                            var out: [LispValue] = []
+                            var first = true
+                            while case let .cons(expr, rest) = current {
+                                if first {
+                                    // skip the function form
+                                    first = false
+                                    current = rest
+                                    continue
+                                }
+                                out.append(expr)
+                                current = rest
+                            }
+                            return out
+                        }()
+                        let fn = try eval(fnExpr, in: env)
+                        let evaledArgs = try argsList.map { try eval($0, in: env) }
+                        guard case let .function(f) = fn else {
+                            throw EvalError.notAFunction
+                        }
+                        return try f(evaledArgs)
+
                     case "FUNCTION":
                         let expr = try car1(cdr)
                         switch expr {
