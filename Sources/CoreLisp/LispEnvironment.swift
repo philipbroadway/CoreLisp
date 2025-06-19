@@ -115,14 +115,14 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                         return val
                     case "IF":
                         let testExpr = try car1(cdr)
-                            let thenExpr = try car2(cdr)
-                            let elseExpr = try car3(cdr) // can be nil
-                            let testValue = try eval(testExpr, in: env)
-                            if !testValue.isNil {
-                                return try thenExpr.map { try eval($0, in: env) } ?? .nil
-                            } else {
-                                return try elseExpr.map { try eval($0, in: env) } ?? .nil
-                            }
+                        let thenExpr = try car2(cdr)
+                        let elseExpr = try car3(cdr) // can be nil
+                        let testValue = try eval(testExpr, in: env)
+                        if !testValue.isNil {
+                            return try thenExpr.map { try eval($0, in: env) } ?? .nil
+                        } else {
+                            return try elseExpr.map { try eval($0, in: env) } ?? .nil
+                        }
                     case "COND":
                         var clauseList = cdr
                         while case let .cons(clause, rest) = clauseList {
@@ -174,6 +174,44 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                         }
                         let value = try eval(arg, in: env)
                         return value.isNil ? .t : .nil
+                    case "LET":
+                        let bindings = try car1(cdr)
+                        let body = try car2(cdr) ?? .nil
+                        let newEnv = LispEnvironment(parent: env)
+                        // Evaluate all bindings in outer env first
+                        var binds: [(LispSymbol, LispValue)] = []
+                        var bindList = bindings
+                        while case let .cons(binding, rest) = bindList {
+                            guard case let .cons(symExpr, bindCdr) = binding,
+                                  case let .symbol(sym) = symExpr,
+                                  let valExpr = try? car1(bindCdr) else {
+                                throw EvalError.invalidForm("LET binding must be (symbol value)")
+                            }
+                            let value = try eval(valExpr, in: env)
+                            binds.append((sym, value))
+                            bindList = rest
+                        }
+                        // Define all in newEnv
+                        for (sym, value) in binds {
+                            newEnv.define(sym, value: value)
+                        }
+                        return try eval(body, in: newEnv)
+                    case "LET*":
+                        let bindings = try car1(cdr)
+                        let body = try car2(cdr) ?? .nil
+                        var currentEnv = LispEnvironment(parent: env)
+                        var bindList = bindings
+                        while case let .cons(binding, rest) = bindList {
+                            guard case let .cons(symExpr, bindCdr) = binding,
+                                  case let .symbol(sym) = symExpr,
+                                  let valExpr = try? car1(bindCdr) else {
+                                throw EvalError.invalidForm("LET* binding must be (symbol value)")
+                            }
+                            let value = try eval(valExpr, in: currentEnv)
+                            currentEnv.define(sym, value: value)
+                            bindList = rest
+                        }
+                        return try eval(body, in: currentEnv)
                     default:
                         break
                 }
