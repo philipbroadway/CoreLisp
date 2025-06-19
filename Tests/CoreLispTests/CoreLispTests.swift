@@ -231,7 +231,7 @@ func listRegression() async throws {
          ("(let* ((x 2) (y (+ x 1))) y)", "3"),
          ("(setq x 5)", "5"),
          ("((lambda (x) (+ x 1)) 41)", "42"),
-        // ("(defun add1 (x) (+ x 1)) (add1 41)", "42"),
+         ("(defun add1 (x) (+ x 1)) (add1 41)", "42"),
     ]
     try await evaluateCases(cases)
 }
@@ -256,13 +256,24 @@ func listRegression() async throws {
     try await evaluateCases(cases)
 }
 
+public func parseAll(tokens: inout [String]) throws -> [LispValue] {
+    var forms: [LispValue] = []
+    while !tokens.isEmpty {
+        forms.append(try parse(tokens: &tokens))
+    }
+    return forms
+}
+
 @MainActor
 func evaluateCases(_ cases: [(String, String)]) async throws {
     for (code, expected) in cases {
-        var tokens = Array(tokenize(code).reversed())
-        let expr   = try parse(tokens: &tokens)
-        let value  = try eval(expr, in: global)
-        #expect(value.description == expected,
-                "Expected \(expected) from \(code), got \(value)")
-    }
+            var tokens = Array(tokenize(code).reversed())
+            let exprs  = try parseAll(tokens: &tokens)
+            var result: LispValue = .nil
+            for expr in exprs {
+                result = try eval(expr, in: global)
+            }
+            #expect(result.description == expected,
+                    "Expected \(expected) from \(code), got \(result)")
+        }
 }

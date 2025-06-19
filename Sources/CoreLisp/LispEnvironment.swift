@@ -261,6 +261,52 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                             }
                             return result
                         }
+                    case "DEFUN":
+                        // Parse function name, parameter list, and body
+                        let nameExpr = try car1(cdr)
+                        guard case let .symbol(fnName) = nameExpr else {
+                            throw EvalError.invalidForm("DEFUN expects function name as symbol")
+                        }
+                        let paramsList = try car2(cdr) ?? .nil
+                        var params: [LispSymbol] = []
+                        var temp = paramsList
+                        while case let .cons(symExpr, rest) = temp {
+                            guard case let .symbol(s) = symExpr else {
+                                throw EvalError.invalidArgument("DEFUN params must be symbols")
+                            }
+                            params.append(s)
+                            temp = rest
+                        }
+                        // Function body: everything after params
+                        let bodyList: LispValue
+                        if case let .cons(_, rest) = cdr, case let .cons(_, restBody) = rest {
+                            bodyList = restBody
+                        } else {
+                            bodyList = .nil
+                        }
+                        var bodyExprs: [LispValue] = []
+                        var curr = bodyList
+                        while case let .cons(expr, more) = curr {
+                            bodyExprs.append(expr)
+                            curr = more
+                        }
+                        let closureEnv = env
+                        let fnValue: LispValue = .function { args in
+                            if args.count != params.count {
+                                throw EvalError.invalidArgument("DEFUN expected \(params.count) args, got \(args.count)")
+                            }
+                            let localEnv = LispEnvironment(parent: closureEnv)
+                            for (param, value) in zip(params, args) {
+                                localEnv.define(param, value: value)
+                            }
+                            var result: LispValue = .nil
+                            for expr in bodyExprs {
+                                result = try eval(expr, in: localEnv)
+                            }
+                            return result
+                        }
+                        env.define(fnName, value: fnValue)
+                        return fnValue
                     default:
                         break
                 }
@@ -276,6 +322,16 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
 
         default:
             throw EvalError.invalidForm("Unexpected form")
+    }
+    // If value is a cons (list of forms), evaluate each in sequence and return the last result
+    if case var .cons(expr, rest) = value {
+        var result: LispValue = .nil
+        var current: LispValue = value
+        while case let .cons(form, next) = current {
+            result = try eval(form, in: env)
+            current = next
+        }
+        return result
     }
 }
 
