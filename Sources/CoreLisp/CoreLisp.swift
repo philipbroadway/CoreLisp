@@ -525,5 +525,25 @@ let global: LispEnvironment = {
         }
     }))
 
+    env.define(LispSymbol(name: "SYMBOL-NAME", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        guard case let .symbol(sym) = args[0] else {
+            throw LispError.typeError(expected: "symbol", got: args[0])
+        }
+        return .string(sym.name)
+    }))
+
+    env.define(LispSymbol(name: "SYMBOL-PACKAGE", package: kCommonLisp), value: .function({ args in
+        guard args.count == 1 else {
+            throw LispError.arity(expected: 1, got: args.count)
+        }
+        guard case let .symbol(sym) = args[0] else {
+            throw LispError.typeError(expected: "symbol", got: args[0])
+        }
+        return .symbol(LispSymbol(name: sym.package, package: kCommonLisp))
+    }))
+
     return env
 }()

@@ -46,6 +46,8 @@ public func parse(tokens: inout [String]) throws -> LispValue {
         return try parseList(&tokens)
     case "'":
         return try makeQuoteForm("QUOTE", tokens: &tokens)
+    case "#'":
+        return try makeQuoteForm("FUNCTION", tokens: &tokens)
     case "#\\":
         guard let next = tokens.popLast() else { throw LispParseError.unexpectedEndOfInput }
         return .character(Character(next))
@@ -96,3 +98,4 @@ public func parseAtom(_ token: String) -> LispValue {
         return .symbol(LispSymbol(name: token.uppercased(), package: kCommonLisp))
     }
 }
+

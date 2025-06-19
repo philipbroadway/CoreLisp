@@ -240,7 +240,7 @@ func listRegression() async throws {
 @Test func evalAndFuncall() async throws {
     let cases: [(String, String)] = [
         // ("(funcall #'+ 1 2)", "3"),
-        // ("(apply #'+ '(1 2))", "3"),
+         ("(apply #'+ '(1 2))", "3"),
          ("(eval '(+ 1 2))", "3"),
     ]
     try await evaluateCases(cases)
@@ -249,8 +249,8 @@ func listRegression() async throws {
 @MainActor
 @Test func symbolCore() async throws {
     let cases: [(String, String)] = [
-        // ("(symbol-name 'foo)", "\"FOO\""),
-        // ("(symbol-package 'foo)", "COMMON-LISP"),
+         ("(symbol-name 'foo)", "\"FOO\""),
+         ("(symbol-package 'foo)", "COMMON-LISP"),
         // ("(keywordp :bar)", "T"),
     ]
     try await evaluateCases(cases)

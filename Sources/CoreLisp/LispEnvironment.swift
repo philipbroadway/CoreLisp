@@ -311,6 +311,36 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                         let expr = try car1(cdr)
                         let toEval = try eval(expr, in: env)
                         return try eval(toEval, in: env)
+                    case "APPLY":
+                        let fnExpr = try car1(cdr)
+                        let argListExpr = try car2(cdr) ?? .nil
+                        let fn = try eval(fnExpr, in: env)
+                        let args = try listToArray(try eval(argListExpr, in: env))
+                        guard case let .function(f) = fn else {
+                            throw EvalError.notAFunction
+                        }
+                        return try f(args)
+                    case "FUNCTION":
+                        let expr = try car1(cdr)
+                        switch expr {
+                        case let .symbol(s):
+                            let fn = try env.get(s)
+                            guard case .function = fn else {
+                                throw EvalError.notAFunction
+                            }
+                            return fn
+                        case let .cons(car, cdr):
+                            // Support #'(lambda ...) as in (function (lambda (x) ...))
+                            if case let .symbol(sym) = car, sym.name.uppercased() == "LAMBDA" {
+                                // Evaluate .cons(car, cdr) as a lambda
+                                let lambdaForm = LispValue.cons(car: car, cdr: cdr)
+                                return try eval(LispValue.cons(car: car, cdr: cdr), in: env)
+                            } else {
+                                throw EvalError.invalidForm("FUNCTION expects a symbol or a lambda expression")
+                            }
+                        default:
+                            throw EvalError.invalidForm("FUNCTION expects a symbol or a lambda expression")
+                        }
                     default:
                         break
                 }

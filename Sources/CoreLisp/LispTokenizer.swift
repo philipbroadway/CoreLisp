@@ -35,6 +35,17 @@ public func tokenize(_ input: String) -> [String] {
             } else {
                 tokens.append(",")
             }
+        case "#":
+            if i + 1 < chars.count, chars[i + 1] == "'" {
+                if !current.isEmpty {
+                    tokens.append(current)
+                    current = ""
+                }
+                tokens.append("#'")
+                i += 1
+            } else {
+                current.append(c)
+            }
         case " ", "\n", "\t":
             if !current.isEmpty {
                 tokens.append(current)
@@ -53,3 +64,4 @@ public func tokenize(_ input: String) -> [String] {
 
     return tokens
 }
+
