@@ -97,6 +97,9 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
             return value
 
         case .symbol(let sym):
+            if sym.package == "KEYWORD" {
+                return .symbol(sym)
+            }
             return try env.get(sym)
 
         case .cons(let car, let cdr):

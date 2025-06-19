@@ -251,7 +251,7 @@ func listRegression() async throws {
     let cases: [(String, String)] = [
          ("(symbol-name 'foo)", "\"FOO\""),
          ("(symbol-package 'foo)", "COMMON-LISP"),
-        // ("(keywordp :bar)", "T"),
+         ("(keywordp :bar)", "T"),
     ]
     try await evaluateCases(cases)
 }
