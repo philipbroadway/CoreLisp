@@ -1,3 +1,10 @@
+//
+//  CoreLisp.swift
+//  CoreLisp
+//
+//  Created by philipbroadway on 6/17/25.
+//
+
 public let kCommonLisp = "COMMON-LISP"
 
 public func lispEqual(_ a: LispValue, _ b: LispValue) -> Bool {
