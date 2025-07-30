@@ -9,16 +9,17 @@ import Foundation
 
 final public class LispEnvironment {
     private var values: [LispSymbol: LispValue] = [:]
+    private var macros: [LispSymbol:LispValue] = [:]
     private let parent: LispEnvironment?
-
+    
     init(parent: LispEnvironment? = nil) {
         self.parent = parent
     }
-
+    
     func define(_ symbol: LispSymbol, value: LispValue) {
         values[symbol] = value
     }
-
+    
     func set(_ symbol: LispSymbol, value: LispValue) throws {
         if values.keys.contains(symbol) {
             values[symbol] = value
@@ -28,7 +29,7 @@ final public class LispEnvironment {
             throw EvalError.unboundSymbol(symbol.name)
         }
     }
-
+    
     func get(_ symbol: LispSymbol) throws -> LispValue {
         if let val = values[symbol] {
             return val
@@ -37,6 +38,15 @@ final public class LispEnvironment {
         } else {
             throw EvalError.unboundSymbol(symbol.name)
         }
+    }
+    
+    func defineMacro(_ symbol: LispSymbol, transformer: @escaping ([LispValue]) throws->LispValue) {
+        macros[symbol] = .macro(transformer)
+    }
+    
+    func getMacro(_ symbol: LispSymbol) -> LispValue? {
+        if let m = macros[symbol] { return m }
+        return parent?.getMacro(symbol)
     }
 }
 
@@ -92,299 +102,383 @@ public func listToArray(_ list: LispValue) throws -> [LispValue] {
 
 @MainActor
 public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValue {
+    
     switch value {
-        case .number, .string, .character, .function, .nil:
-            return value
-
-        case .symbol(let sym):
-            if sym.package == "KEYWORD" {
-                return .symbol(sym)
-            }
-            return try env.get(sym)
-
-        case .cons(let car, let cdr):
-            // Handle special forms before evaluating car
-            if case let .symbol(sym) = car {
-                switch sym.name.uppercased() {
-                    case "QUOTE":
-                        return try car1(cdr)
-                    case "QUASIQUOTE":
-                        let qqExpr = try car1(cdr)
-                        return try quasiquoteExpand(qqExpr, env: env, level: 1)
-                    case "SETQ":
-                        var lastValue: LispValue = .nil
-                        var args = cdr
-                        while case let .cons(symExpr, rest1) = args, case let .cons(valExpr, rest2) = rest1 {
-                            guard case let .symbol(s) = symExpr else {
-                                throw EvalError.invalidArgument("SETQ expects symbol")
-                            }
-                            let val = try eval(valExpr, in: env)
-                            env.define(s, value: val)
-                            lastValue = val
-                            args = rest2
-                        }
-                        if case .nil = args {
-                            return lastValue
-                        } else {
-                            throw EvalError.invalidForm("SETQ expects pairs of symbol and value")
-                        }
-                    case "IF":
-                        let testExpr = try car1(cdr)
-                        let thenExpr = try car2(cdr)
-                        let elseExpr = try car3(cdr) // can be nil
-                        let testValue = try eval(testExpr, in: env)
-                        if !testValue.isNil {
-                            return try thenExpr.map { try eval($0, in: env) } ?? .nil
-                        } else {
-                            return try elseExpr.map { try eval($0, in: env) } ?? .nil
-                        }
-                    case "COND":
-                        var clauseList = cdr
-                        while case let .cons(clause, rest) = clauseList {
-                            guard case let .cons(testExpr, results) = clause else {
-                                throw EvalError.invalidForm("COND clause must be a list")
-                            }
-                            let testValue = try eval(testExpr, in: env)
-                            if !testValue.isNil {
-                                // Evaluate result forms, if any
-                                if case .nil = results {
-                                    return testValue
-                                } else {
-                                    var resultVal: LispValue = .nil
-                                    var currentResults = results
-                                    while case let .cons(resultExpr, more) = currentResults {
-                                        resultVal = try eval(resultExpr, in: env)
-                                        currentResults = more
-                                    }
-                                    return resultVal
-                                }
-                            }
-                            clauseList = rest
-                        }
-                        return .nil
-                    case "AND":
-                        var result: LispValue = .t
-                        var exprs = cdr
-                        while case let .cons(expr, rest) = exprs {
-                            result = try eval(expr, in: env)
-                            if result.isNil {
-                                return .nil
-                            }
-                            exprs = rest
-                        }
-                        return result
-                    case "OR":
-                        var exprs = cdr
-                        while case let .cons(expr, rest) = exprs {
-                            let result = try eval(expr, in: env)
-                            if !result.isNil {
-                                return result
-                            }
-                            exprs = rest
-                        }
-                        return .nil
-                    case "NOT":
-                        guard let arg = try car1(cdr) as LispValue? else {
-                            throw EvalError.invalidForm("NOT expects one argument")
-                        }
-                        let value = try eval(arg, in: env)
-                        return value.isNil ? .t : .nil
-                    case "LET":
-                        let bindings = try car1(cdr)
-                        let body = try car2(cdr) ?? .nil
-                        let newEnv = LispEnvironment(parent: env)
-                        // Evaluate all bindings in outer env first
-                        var binds: [(LispSymbol, LispValue)] = []
-                        var bindList = bindings
-                        while case let .cons(binding, rest) = bindList {
-                            guard case let .cons(symExpr, bindCdr) = binding,
-                                  case let .symbol(sym) = symExpr,
-                                  let valExpr = try? car1(bindCdr) else {
-                                throw EvalError.invalidForm("LET binding must be (symbol value)")
-                            }
-                            let value = try eval(valExpr, in: env)
-                            binds.append((sym, value))
-                            bindList = rest
-                        }
-                        // Define all in newEnv
-                        for (sym, value) in binds {
-                            newEnv.define(sym, value: value)
-                        }
-                        return try eval(body, in: newEnv)
-                    case "LET*":
-                        let bindings = try car1(cdr)
-                        let body = try car2(cdr) ?? .nil
-                        let currentEnv = LispEnvironment(parent: env)
-                        var bindList = bindings
-                        while case let .cons(binding, rest) = bindList {
-                            guard case let .cons(symExpr, bindCdr) = binding,
-                                  case let .symbol(sym) = symExpr,
-                                  let valExpr = try? car1(bindCdr) else {
-                                throw EvalError.invalidForm("LET* binding must be (symbol value)")
-                            }
-                            let value = try eval(valExpr, in: currentEnv)
-                            currentEnv.define(sym, value: value)
-                            bindList = rest
-                        }
-                        return try eval(body, in: currentEnv)
-                    case "LAMBDA":
-                        // Extract parameter list
-                        let paramsList = try car1(cdr)
-                        var params: [LispSymbol] = []
-                        var temp = paramsList
-                        while case let .cons(symExpr, rest) = temp {
-                            guard case let .symbol(s) = symExpr else {
-                                throw EvalError.invalidArgument("LAMBDA params must be symbols")
-                            }
-                            params.append(s)
-                            temp = rest
-                        }
-                        // Everything after params is the body
-                        let bodyList: LispValue
-                        if case let .cons(_, rest) = cdr {
-                            bodyList = rest
-                        } else {
-                            bodyList = .nil
-                        }
-                        var bodyExprs: [LispValue] = []
-                        var curr = bodyList
-                        while case let .cons(expr, more) = curr {
-                            bodyExprs.append(expr)
-                            curr = more
-                        }
-                        let closureEnv = env
-                        return .function { args in
-                            if args.count != params.count {
-                                throw EvalError.invalidArgument("LAMBDA expected \(params.count) args, got \(args.count)")
-                            }
-                            let localEnv = LispEnvironment(parent: closureEnv)
-                            for (param, value) in zip(params, args) {
-                                localEnv.define(param, value: value)
-                            }
-                            var result: LispValue = .nil
-                            for expr in bodyExprs {
-                                result = try eval(expr, in: localEnv)
-                            }
-                            return result
-                        }
-                    case "DEFUN":
-                        // Parse function name, parameter list, and body
-                        let nameExpr = try car1(cdr)
-                        guard case let .symbol(fnName) = nameExpr else {
-                            throw EvalError.invalidForm("DEFUN expects function name as symbol")
-                        }
-                        let paramsList = try car2(cdr) ?? .nil
-                        var params: [LispSymbol] = []
-                        var temp = paramsList
-                        while case let .cons(symExpr, rest) = temp {
-                            guard case let .symbol(s) = symExpr else {
-                                throw EvalError.invalidArgument("DEFUN params must be symbols")
-                            }
-                            params.append(s)
-                            temp = rest
-                        }
-                        // Function body: everything after params
-                        let bodyList: LispValue
-                        if case let .cons(_, rest) = cdr, case let .cons(_, restBody) = rest {
-                            bodyList = restBody
-                        } else {
-                            bodyList = .nil
-                        }
-                        var bodyExprs: [LispValue] = []
-                        var curr = bodyList
-                        while case let .cons(expr, more) = curr {
-                            bodyExprs.append(expr)
-                            curr = more
-                        }
-                        let closureEnv = env
-                        let fnValue: LispValue = .function { args in
-                            if args.count != params.count {
-                                throw EvalError.invalidArgument("DEFUN expected \(params.count) args, got \(args.count)")
-                            }
-                            let localEnv = LispEnvironment(parent: closureEnv)
-                            for (param, value) in zip(params, args) {
-                                localEnv.define(param, value: value)
-                            }
-                            var result: LispValue = .nil
-                            for expr in bodyExprs {
-                                result = try eval(expr, in: localEnv)
-                            }
-                            return result
-                        }
-                        env.define(fnName, value: fnValue)
-                        return fnValue
-                    case "EVAL":
-                        let expr = try car1(cdr)
-                        let toEval = try eval(expr, in: env)
-                        return try eval(toEval, in: env)
-                    case "APPLY":
-                        let fnExpr = try car1(cdr)
-                        let argListExpr = try car2(cdr) ?? .nil
-                        let fn = try eval(fnExpr, in: env)
-                        let args = try listToArray(try eval(argListExpr, in: env))
-                        guard case let .function(f) = fn else {
-                            throw EvalError.notAFunction
-                        }
-                        return try f(args)
-
-                    case "FUNCALL":
-                        let fnExpr = try car1(cdr)
-                        let argsList = try {
-                            var current = cdr
-                            var out: [LispValue] = []
-                            var first = true
-                            while case let .cons(expr, rest) = current {
-                                if first {
-                                    // skip the function form
-                                    first = false
-                                    current = rest
-                                    continue
-                                }
-                                out.append(expr)
-                                current = rest
-                            }
-                            return out
-                        }()
-                        let fn = try eval(fnExpr, in: env)
-                        let evaledArgs = try argsList.map { try eval($0, in: env) }
-                        guard case let .function(f) = fn else {
-                            throw EvalError.notAFunction
-                        }
-                        return try f(evaledArgs)
-
-                    case "FUNCTION":
-                        let expr = try car1(cdr)
-                        switch expr {
-                        case let .symbol(s):
-                            let fn = try env.get(s)
-                            guard case .function = fn else {
-                                throw EvalError.notAFunction
-                            }
-                            return fn
-                        case let .cons(car, cdr):
-                            // Support #'(lambda ...) as in (function (lambda (x) ...))
-                            if case let .symbol(sym) = car, sym.name.uppercased() == "LAMBDA" {
-                                // Evaluate .cons(car, cdr) as a lambda
-                                let lambdaForm = LispValue.cons(car: car, cdr: cdr)
-                                return try eval(LispValue.cons(car: car, cdr: cdr), in: env)
-                            } else {
-                                throw EvalError.invalidForm("FUNCTION expects a symbol or a lambda expression")
-                            }
-                        default:
-                            throw EvalError.invalidForm("FUNCTION expects a symbol or a lambda expression")
-                        }
-                    default:
-                        break
+    case .number, .string, .character, .function, .macro, .nil:
+        return value
+        
+    case .symbol(let sym):
+        if sym.package == "KEYWORD" {
+            return .symbol(sym)
+        }
+        return try env.get(sym)
+        
+    case .cons(let car, let cdr):
+        
+        // 1) Macro-expand any macro call
+        if case let .symbol(sym) = car,
+           let mval = env.getMacro(sym),
+           case let .macro(transformer) = mval
+        {
+            // get the raw arg forms
+            let rawArgs = try listToArray(cdr)
+            // run the macro transformer to produce an expansion
+            let expansion = try transformer(rawArgs)
+            // evaluate that expansion instead of the original form
+            return try eval(expansion, in: env)
+        }
+        
+        // Handle special forms before evaluating car
+        if case let .symbol(sym) = car {
+            switch sym.name.uppercased() {
+            case "QUOTE":
+                return try car1(cdr)
+            case "QUASIQUOTE":
+                let qqExpr = try car1(cdr)
+                return try quasiquoteExpand(qqExpr, env: env, level: 1)
+            case "SETQ":
+                var lastValue: LispValue = .nil
+                var args = cdr
+                while case let .cons(symExpr, rest1) = args, case let .cons(valExpr, rest2) = rest1 {
+                    guard case let .symbol(s) = symExpr else {
+                        throw EvalError.invalidArgument("SETQ expects symbol")
+                    }
+                    let val = try eval(valExpr, in: env)
+                    env.define(s, value: val)
+                    lastValue = val
+                    args = rest2
                 }
-            }
-            let head = try eval(car, in: env)
-            switch head {
-                case .function(let fn):
-                    let args = try listToArray(cdr).map { try eval($0, in: env) }
-                    return try fn(args)
-                default:
+                if case .nil = args {
+                    return lastValue
+                } else {
+                    throw EvalError.invalidForm("SETQ expects pairs of symbol and value")
+                }
+            case "IF":
+                let testExpr = try car1(cdr)
+                let thenExpr = try car2(cdr)
+                let elseExpr = try car3(cdr) // can be nil
+                let testValue = try eval(testExpr, in: env)
+                if !testValue.isNil {
+                    return try thenExpr.map { try eval($0, in: env) } ?? .nil
+                } else {
+                    return try elseExpr.map { try eval($0, in: env) } ?? .nil
+                }
+            case "COND":
+                var clauseList = cdr
+                while case let .cons(clause, rest) = clauseList {
+                    guard case let .cons(testExpr, results) = clause else {
+                        throw EvalError.invalidForm("COND clause must be a list")
+                    }
+                    let testValue = try eval(testExpr, in: env)
+                    if !testValue.isNil {
+                        // Evaluate result forms, if any
+                        if case .nil = results {
+                            return testValue
+                        } else {
+                            var resultVal: LispValue = .nil
+                            var currentResults = results
+                            while case let .cons(resultExpr, more) = currentResults {
+                                resultVal = try eval(resultExpr, in: env)
+                                currentResults = more
+                            }
+                            return resultVal
+                        }
+                    }
+                    clauseList = rest
+                }
+                return .nil
+            case "AND":
+                var result: LispValue = .t
+                var exprs = cdr
+                while case let .cons(expr, rest) = exprs {
+                    result = try eval(expr, in: env)
+                    if result.isNil {
+                        return .nil
+                    }
+                    exprs = rest
+                }
+                return result
+            case "OR":
+                var exprs = cdr
+                while case let .cons(expr, rest) = exprs {
+                    let result = try eval(expr, in: env)
+                    if !result.isNil {
+                        return result
+                    }
+                    exprs = rest
+                }
+                return .nil
+            case "NOT":
+                guard let arg = try car1(cdr) as LispValue? else {
+                    throw EvalError.invalidForm("NOT expects one argument")
+                }
+                let value = try eval(arg, in: env)
+                return value.isNil ? .t : .nil
+            case "LET":
+                let bindings = try car1(cdr)
+                let body = try car2(cdr) ?? .nil
+                let newEnv = LispEnvironment(parent: env)
+                // Evaluate all bindings in outer env first
+                var binds: [(LispSymbol, LispValue)] = []
+                var bindList = bindings
+                while case let .cons(binding, rest) = bindList {
+                    guard case let .cons(symExpr, bindCdr) = binding,
+                          case let .symbol(sym) = symExpr,
+                          let valExpr = try? car1(bindCdr) else {
+                        throw EvalError.invalidForm("LET binding must be (symbol value)")
+                    }
+                    let value = try eval(valExpr, in: env)
+                    binds.append((sym, value))
+                    bindList = rest
+                }
+                // Define all in newEnv
+                for (sym, value) in binds {
+                    newEnv.define(sym, value: value)
+                }
+                return try eval(body, in: newEnv)
+            case "LET*":
+                let bindings = try car1(cdr)
+                let body = try car2(cdr) ?? .nil
+                let currentEnv = LispEnvironment(parent: env)
+                var bindList = bindings
+                while case let .cons(binding, rest) = bindList {
+                    guard case let .cons(symExpr, bindCdr) = binding,
+                          case let .symbol(sym) = symExpr,
+                          let valExpr = try? car1(bindCdr) else {
+                        throw EvalError.invalidForm("LET* binding must be (symbol value)")
+                    }
+                    let value = try eval(valExpr, in: currentEnv)
+                    currentEnv.define(sym, value: value)
+                    bindList = rest
+                }
+                return try eval(body, in: currentEnv)
+            case "LAMBDA":
+                // Extract parameter list
+                let paramsList = try car1(cdr)
+                var params: [LispSymbol] = []
+                var temp = paramsList
+                while case let .cons(symExpr, rest) = temp {
+                    guard case let .symbol(s) = symExpr else {
+                        throw EvalError.invalidArgument("LAMBDA params must be symbols")
+                    }
+                    params.append(s)
+                    temp = rest
+                }
+                // Everything after params is the body
+                let bodyList: LispValue
+                if case let .cons(_, rest) = cdr {
+                    bodyList = rest
+                } else {
+                    bodyList = .nil
+                }
+                var bodyExprs: [LispValue] = []
+                var curr = bodyList
+                while case let .cons(expr, more) = curr {
+                    bodyExprs.append(expr)
+                    curr = more
+                }
+                let closureEnv = env
+                return .function { args in
+                    if args.count != params.count {
+                        throw EvalError.invalidArgument("LAMBDA expected \(params.count) args, got \(args.count)")
+                    }
+                    let localEnv = LispEnvironment(parent: closureEnv)
+                    for (param, value) in zip(params, args) {
+                        localEnv.define(param, value: value)
+                    }
+                    var result: LispValue = .nil
+                    for expr in bodyExprs {
+                        result = try eval(expr, in: localEnv)
+                    }
+                    return result
+                }
+            case "DEFUN":
+                // Parse function name, parameter list, and body
+                let nameExpr = try car1(cdr)
+                guard case let .symbol(fnName) = nameExpr else {
+                    throw EvalError.invalidForm("DEFUN expects function name as symbol")
+                }
+                let paramsList = try car2(cdr) ?? .nil
+                var params: [LispSymbol] = []
+                var temp = paramsList
+                while case let .cons(symExpr, rest) = temp {
+                    guard case let .symbol(s) = symExpr else {
+                        throw EvalError.invalidArgument("DEFUN params must be symbols")
+                    }
+                    params.append(s)
+                    temp = rest
+                }
+                // Function body: everything after params
+                let bodyList: LispValue
+                if case let .cons(_, rest) = cdr, case let .cons(_, restBody) = rest {
+                    bodyList = restBody
+                } else {
+                    bodyList = .nil
+                }
+                var bodyExprs: [LispValue] = []
+                var curr = bodyList
+                while case let .cons(expr, more) = curr {
+                    bodyExprs.append(expr)
+                    curr = more
+                }
+                let closureEnv = env
+                let fnValue: LispValue = .function { args in
+                    if args.count != params.count {
+                        throw EvalError.invalidArgument("DEFUN expected \(params.count) args, got \(args.count)")
+                    }
+                    let localEnv = LispEnvironment(parent: closureEnv)
+                    for (param, value) in zip(params, args) {
+                        localEnv.define(param, value: value)
+                    }
+                    var result: LispValue = .nil
+                    for expr in bodyExprs {
+                        result = try eval(expr, in: localEnv)
+                    }
+                    return result
+                }
+                env.define(fnName, value: fnValue)
+                return fnValue
+            case "EVAL":
+                let expr = try car1(cdr)
+                let toEval = try eval(expr, in: env)
+                return try eval(toEval, in: env)
+            case "APPLY":
+                let fnExpr = try car1(cdr)
+                let argListExpr = try car2(cdr) ?? .nil
+                let fn = try eval(fnExpr, in: env)
+                let args = try listToArray(try eval(argListExpr, in: env))
+                guard case let .function(f) = fn else {
                     throw EvalError.notAFunction
+                }
+                return try f(args)
+                
+            case "FUNCALL":
+                let fnExpr = try car1(cdr)
+                let argsList = try {
+                    var current = cdr
+                    var out: [LispValue] = []
+                    var first = true
+                    while case let .cons(expr, rest) = current {
+                        if first {
+                            // skip the function form
+                            first = false
+                            current = rest
+                            continue
+                        }
+                        out.append(expr)
+                        current = rest
+                    }
+                    return out
+                }()
+                let fn = try eval(fnExpr, in: env)
+                let evaledArgs = try argsList.map { try eval($0, in: env) }
+                guard case let .function(f) = fn else {
+                    throw EvalError.notAFunction
+                }
+                return try f(evaledArgs)
+                
+            case "FUNCTION":
+                let expr = try car1(cdr)
+                switch expr {
+                case let .symbol(s):
+                    let fn = try env.get(s)
+                    guard case .function = fn else {
+                        throw EvalError.notAFunction
+                    }
+                    return fn
+                case let .cons(car, cdr):
+                    // Support #'(lambda ...) as in (function (lambda (x) ...))
+                    if case let .symbol(sym) = car, sym.name.uppercased() == "LAMBDA" {
+                        // Evaluate .cons(car, cdr) as a lambda
+                        let lambdaForm = LispValue.cons(car: car, cdr: cdr)
+                        return try eval(LispValue.cons(car: car, cdr: cdr), in: env)
+                    } else {
+                        throw EvalError.invalidForm("FUNCTION expects a symbol or a lambda expression")
+                    }
+                default:
+                    throw EvalError.invalidForm("FUNCTION expects a symbol or a lambda expression")
+                }
+            case "DEFMACRO":
+                // syntax: (defmacro name (params...) body...)
+                let nameExpr   = try car1(cdr)
+                let paramList  = try car2(cdr) ?? .nil
+                // Skip the first two elements of cdr to get the body forms
+                let bodyList: LispValue = {
+                    var temp = cdr
+                    // skip name
+                    if case let .cons(_, rest1) = temp {
+                        temp = rest1
+                    }
+                    // skip param list
+                    if case let .cons(_, rest2) = temp {
+                        temp = rest2
+                    }
+                    return temp
+                }()
+                let bodyForms = try listToArray(bodyList)
+                guard case let .symbol(symName) = nameExpr else {
+                    throw EvalError.invalidForm("DEFMACRO expects a symbol as function name")
+                }
+                // build a transformer that, when given the raw arg forms, binds
+                // them to the params and evals the body in a fresh env:
+                let transformer: ([LispValue]) throws -> LispValue = { rawArgs in
+                    let local = LispEnvironment(parent: env)
+                    // bind each parameter symbol to the *form* (not its eval)
+                    var tempParams = paramList
+                    for argForm in rawArgs {
+                        guard case let .cons(symParamExpr, rest) = tempParams,
+                              case let .symbol(paramSym) = symParamExpr else {
+                            throw EvalError.invalidArgument("DEFMACRO parameter mismatch")
+                        }
+                        local.define(paramSym, value: argForm)
+                        tempParams = rest
+                    }
+                    // evaluate body in that local env—result is the expansion
+                    var result: LispValue = .nil
+                    for form in bodyForms {
+                        result = try eval(form, in: local)
+                    }
+                    return result
+                }
+                env.defineMacro(symName, transformer: transformer)
+                return .symbol(symName)
+                
+            case "MACROEXPAND":
+                // get the raw form argument
+                let rawForm = try car1(cdr)
+                // if it’s a quoted form '(foo …), unwrap to (foo …)
+                let formToExpand: LispValue
+                if case let .cons(head, tail) = rawForm,
+                   case let .symbol(sym) = head, sym.name.uppercased() == "QUOTE",
+                   let inner = try? car1(tail)
+                {
+                    formToExpand = inner
+                } else {
+                    formToExpand = rawForm
+                }
+                // now, if it's a macro call, run its transformer
+                if case let .cons(h, restForms) = formToExpand,
+                   case let .symbol(symHead) = h,
+                   let mval = env.getMacro(symHead),
+                   case let .macro(transformer) = mval
+                {
+                    let rawArgs = try listToArray(restForms)
+                    return try transformer(rawArgs)
+                }
+                // otherwise just return the unwrapped form
+                return formToExpand
+            default:
+                break
             }
+        }
+        let head = try eval(car, in: env)
+        switch head {
+        case .function(let fn):
+            let args = try listToArray(cdr).map { try eval($0, in: env) }
+            return try fn(args)
+        default:
+            throw EvalError.notAFunction
+        }
     }
     // If value is a cons (list of forms), evaluate each in sequence and return the last result
     if case var .cons(expr, rest) = value {
@@ -419,7 +513,7 @@ func quasiquoteExpand(
                     return .cons(car: .symbol(sym),
                                  cdr: .cons(car: inner, cdr: .nil))
                 }
-
+                
             case "UNQUOTE-SPLICING":
                 if level == 1 {
                     throw EvalError.invalidForm(",@ must appear inside a list")
@@ -428,21 +522,21 @@ func quasiquoteExpand(
                     return .cons(car: .symbol(sym),
                                  cdr: .cons(car: inner, cdr: .nil))
                 }
-
+                
             case "QUASIQUOTE":
                 // treat *this* backtick as a fresh quasiquote context,
                 // so its commas will all be evaluated
                 let inner = try car1(cdr)
                 let expandedInner = try quasiquoteExpand(inner, env: env, level: 1)
                 return .cons(car: .symbol(sym), cdr: .cons(car: expandedInner, cdr: .nil))
-
+                
             default:
                 break
             }
         }
         // For any other list, rebuild it, splicing as needed
         return try buildQQList(form, env: env, level: level)
-
+        
     default:
         // Atom literal at any level (including top‐level): return as‐is
         return form
@@ -472,7 +566,7 @@ fileprivate func mapList(_ list: LispValue, _ transform: (LispValue) throws -> L
 private func buildQQList(_ list: LispValue, env: LispEnvironment, level: Int) throws -> LispValue {
     var elements: [LispValue] = []
     var current = list
-
+    
     while case let .cons(car, cdr) = current {
         if case let .cons(innerCar, innerCdr) = car,
            case let .symbol(sym) = innerCar,
@@ -487,10 +581,10 @@ private func buildQQList(_ list: LispValue, env: LispEnvironment, level: Int) th
         }
         current = cdr
     }
-
+    
     // Reconstruct proper list
     return elements.reversed().reduce(.nil) { acc, next in
-        .cons(car: next, cdr: acc)
+            .cons(car: next, cdr: acc)
     }
 }
 
@@ -499,13 +593,14 @@ public enum EvalError: Error, CustomStringConvertible {
     case unboundSymbol(String)
     case invalidForm(String)
     case invalidArgument(String)
-
+    
     public var description: String {
         switch self {
-            case .notAFunction: return "Not a function"
-            case .unboundSymbol(let s): return "Unbound symbol: \(s)"
-            case .invalidForm(let s): return "Invalid form: \(s)"
-            case .invalidArgument(let s): return "Invalid argument: \(s)"
+        case .notAFunction: return "Not a function"
+        case .unboundSymbol(let s): return "Unbound symbol: \(s)"
+        case .invalidForm(let s): return "Invalid form: \(s)"
+        case .invalidArgument(let s): return "Invalid argument: \(s)"
         }
     }
 }
+

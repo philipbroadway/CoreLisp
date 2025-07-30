@@ -10,7 +10,7 @@
 - ❌ Dynamic scope via `special`
 - ⚠️ REPL-driven development (basic eval, but no REPL loop)
 - ✅ Homoiconicity (code as data)
-- ❌ Macros (`defmacro`, `macroexpand`)
+- ✅ Macros (`defmacro`, `macroexpand`)
 - ✅ Quasiquote / Unquote (`\``, `,`, `,@`)
 - ❌ Multiple values
 - ⚠️ Tail recursion support (relies on Swift optimizer)

@@ -35,6 +35,7 @@ indirect public enum LispValue {
     case character(Character)
     case cons(car: LispValue, cdr: LispValue)
     case function(([LispValue]) throws -> LispValue)
+    case macro(([LispValue]) throws -> LispValue)
     case `nil`
 }
 
@@ -90,6 +91,8 @@ extension LispValue: CustomStringConvertible {
                 return consToString(self)
             case .function:
                 return "#<function>"
+            case .macro:
+                return "#<macro>"
             case .nil:
                 return "()"
         }

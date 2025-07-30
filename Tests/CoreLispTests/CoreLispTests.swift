@@ -331,3 +331,35 @@ func quasiquoteUnquoteTests() throws {
         #expect(result.description == "(X `(Y 5))")
     }
 }
+
+@MainActor
+@Test
+func macroDefinitionThenEval() async throws {
+    // Define a simple macro twice and immediately invoke it
+    let code = "(defmacro twice (x) `(+ ,x ,x)) (twice 5)"
+    var tokens = Array(tokenize(code).reversed())
+    let exprs = try parseAll(tokens: &tokens)
+    
+    var result: LispValue = .nil
+    for expr in exprs {
+        result = try eval(expr, in: global)
+    }
+    
+    #expect(result.description == "10")
+}
+
+@MainActor
+@Test
+func macroExpandOnly() async throws {
+    // Define the same macro and then just macroexpand its call
+    let code = "(defmacro twice (x) `(+ ,x ,x)) (macroexpand '(twice 7))"
+    var tokens = Array(tokenize(code).reversed())
+    let exprs = try parseAll(tokens: &tokens)
+    
+    var result: LispValue = .nil
+    for expr in exprs {
+        result = try eval(expr, in: global)
+    }
+    
+    #expect(result.description == "(+ 7 7)")
+}
