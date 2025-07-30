@@ -99,20 +99,6 @@ extension LispValue: CustomStringConvertible {
     }
 }
 
-//public func consToString(_ cons: LispValue) -> String {
-//    var parts: [String] = []
-//    var current = cons
-//    while case let .cons(car, cdr) = current {
-//        parts.append(car.description)
-//        current = cdr
-//    }
-//    if case .nil = current {
-//        return "(" + parts.joined(separator: " ") + ")"
-//    } else {
-//        return "(" + parts.joined(separator: " ") + " . " + current.description + ")"
-//    }
-//}
-
 func consToString(_ cons: LispValue) -> String {
     // detect one‐element lists for quote/quasiquote/unquote
     if case let .cons(car, cdr) = cons,
