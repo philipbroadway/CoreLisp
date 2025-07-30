@@ -108,6 +108,9 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                 switch sym.name.uppercased() {
                     case "QUOTE":
                         return try car1(cdr)
+                    case "QUASIQUOTE":
+                        let qqExpr = try car1(cdr)
+                        return try quasiquoteExpand(qqExpr, env: env, level: 1)
                     case "SETQ":
                         var lastValue: LispValue = .nil
                         var args = cdr
@@ -395,6 +398,102 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
     }
 }
 
+@MainActor
+func quasiquoteExpand(
+    _ form: LispValue,
+    env: LispEnvironment,
+    level: Int = 1
+) throws -> LispValue {
+    switch form {
+    case let .cons(car, cdr):
+        // Handle unquote / unquote-splicing / nested quasiquote
+        if case let .symbol(sym) = car {
+            switch sym.name.uppercased() {
+            case "UNQUOTE":
+                if level == 1 {
+                    // evaluate ,(...)
+                    return try eval( try car1(cdr), in: env )
+                } else {
+                    // deeper nesting → keep the syntax
+                    let inner = try quasiquoteExpand( try car1(cdr), env: env, level: level - 1 )
+                    return .cons(car: .symbol(sym),
+                                 cdr: .cons(car: inner, cdr: .nil))
+                }
+
+            case "UNQUOTE-SPLICING":
+                if level == 1 {
+                    throw EvalError.invalidForm(",@ must appear inside a list")
+                } else {
+                    let inner = try quasiquoteExpand( try car1(cdr), env: env, level: level - 1 )
+                    return .cons(car: .symbol(sym),
+                                 cdr: .cons(car: inner, cdr: .nil))
+                }
+
+            case "QUASIQUOTE":
+                // treat *this* backtick as a fresh quasiquote context,
+                // so its commas will all be evaluated
+                let inner = try car1(cdr)
+                let expandedInner = try quasiquoteExpand(inner, env: env, level: 1)
+                return .cons(car: .symbol(sym), cdr: .cons(car: expandedInner, cdr: .nil))
+
+            default:
+                break
+            }
+        }
+        // For any other list, rebuild it, splicing as needed
+        return try buildQQList(form, env: env, level: level)
+
+    default:
+        // Atom literal at any level (including top‐level): return as‐is
+        return form
+    }
+}
+
+// helper to map a list (LispValue list) applying closure on each element
+fileprivate func mapList(_ list: LispValue, _ transform: (LispValue) throws -> LispValue) throws -> LispValue {
+    var current = list
+    var result: LispValue = .nil
+    var elements: [LispValue] = []
+    while case let .cons(car, cdr) = current {
+        elements.append(try transform(car))
+        current = cdr
+    }
+    if case .nil = current {
+        for elem in elements.reversed() {
+            result = LispValue.cons(car: elem, cdr: result)
+        }
+        return result
+    } else {
+        throw EvalError.invalidForm("Improper list")
+    }
+}
+
+@MainActor
+private func buildQQList(_ list: LispValue, env: LispEnvironment, level: Int) throws -> LispValue {
+    var elements: [LispValue] = []
+    var current = list
+
+    while case let .cons(car, cdr) = current {
+        if case let .cons(innerCar, innerCdr) = car,
+           case let .symbol(sym) = innerCar,
+           sym.name.uppercased() == "UNQUOTE-SPLICING",
+           level == 1 {
+            // handle ,@ splicing
+            let spliceValue = try eval(try car1(innerCdr), in: env)
+            let spliceArray = try listToArray(spliceValue)
+            elements.append(contentsOf: spliceArray)
+        } else {
+            elements.append(try quasiquoteExpand(car, env: env, level: level))
+        }
+        current = cdr
+    }
+
+    // Reconstruct proper list
+    return elements.reversed().reduce(.nil) { acc, next in
+        .cons(car: next, cdr: acc)
+    }
+}
+
 public enum EvalError: Error, CustomStringConvertible {
     case notAFunction
     case unboundSymbol(String)
@@ -410,4 +509,3 @@ public enum EvalError: Error, CustomStringConvertible {
         }
     }
 }
-

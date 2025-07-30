@@ -277,3 +277,57 @@ func evaluateCases(_ cases: [(String, String)]) async throws {
                     "Expected \(expected) from \(code), got \(result)")
         }
 }
+
+@MainActor
+@Test
+func quasiquoteUnquoteTests() throws {
+    // Simple quasiquote
+    do {
+        let input = "`(1 2 3)"
+        var tokens = Array(tokenize(input).reversed())
+        let exprs = try parse(tokens: &tokens)
+        let result = try eval(exprs, in: global)
+        #expect(result.description == "(1 2 3)")
+    }
+
+    // Quasiquote + unquote
+    do {
+        let input = "`(a ,(+ 1 2) c)"
+        var tokens = Array(tokenize(input).reversed())
+        let exprs = try parse(tokens: &tokens)
+        let result = try eval(exprs, in: global)
+        #expect(result.description == "(A 3 C)")
+    }
+
+    // Quasiquote + symbol unquote with setq
+    do {
+        let setupInput = "(setq x 9)"
+        var setupTokens = Array(tokenize(setupInput).reversed())
+        let setupExprs = try parse(tokens: &setupTokens)
+        _ = try eval(setupExprs, in: global)
+
+        let input = "`(foo ,x bar)"
+        var tokens = Array(tokenize(input).reversed())
+        let exprs = try parse(tokens: &tokens)
+        let result = try eval(exprs, in: global)
+        #expect(result.description == "(FOO 9 BAR)")
+    }
+
+    // Quasiquote + unquote-splicing
+    do {
+        let input = "`(1 2 ,@(list 3 4) 5)"
+        var tokens = Array(tokenize(input).reversed())
+        let exprs = try parse(tokens: &tokens)
+        let result = try eval(exprs, in: global)
+        #expect(result.description == "(1 2 3 4 5)")
+    }
+
+    // Nested quasiquotes
+    do {
+        let input = "`(x `(y ,(+ 2 3)))"
+        var tokens = Array(tokenize(input).reversed())
+        let exprs = try parse(tokens: &tokens)
+        let result = try eval(exprs, in: global)
+        #expect(result.description == "(X `(Y 5))")
+    }
+}

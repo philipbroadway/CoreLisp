@@ -96,12 +96,46 @@ extension LispValue: CustomStringConvertible {
     }
 }
 
-public func consToString(_ cons: LispValue) -> String {
+//public func consToString(_ cons: LispValue) -> String {
+//    var parts: [String] = []
+//    var current = cons
+//    while case let .cons(car, cdr) = current {
+//        parts.append(car.description)
+//        current = cdr
+//    }
+//    if case .nil = current {
+//        return "(" + parts.joined(separator: " ") + ")"
+//    } else {
+//        return "(" + parts.joined(separator: " ") + " . " + current.description + ")"
+//    }
+//}
+
+func consToString(_ cons: LispValue) -> String {
+    // detect one‐element lists for quote/quasiquote/unquote
+    if case let .cons(car, cdr) = cons,
+       case .symbol(let sym) = car,
+       case let .cons(inner, tail) = cdr,
+       case .nil = tail {
+        switch sym.name.uppercased() {
+        case "QUOTE":
+            return "'\(inner.description)"
+        case "QUASIQUOTE":
+            return "`\(inner.description)"
+        case "UNQUOTE":
+            return ",\(inner.description)"
+        case "UNQUOTE-SPLICING":
+            return ",@\(inner.description)"
+        default:
+            break
+        }
+    }
+
+    // fallback to a plain list printer
     var parts: [String] = []
     var current = cons
-    while case let .cons(car, cdr) = current {
-        parts.append(car.description)
-        current = cdr
+    while case let .cons(carElement, rest) = current {
+        parts.append(carElement.description)
+        current = rest
     }
     if case .nil = current {
         return "(" + parts.joined(separator: " ") + ")"
