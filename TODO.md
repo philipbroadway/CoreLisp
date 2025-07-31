@@ -38,7 +38,7 @@
 ## Control Flow
 - ✅ `if`, `cond`
 - ✅ `and`, `or`, `not`
-- ❌ `progn`
+- ✅ `progn`
 - ❌ `block`, `return-from`
 - ❌ `tagbody`, `go`
 - ❌ `catch`, `throw`

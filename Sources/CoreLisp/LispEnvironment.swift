@@ -187,6 +187,14 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                     clauseList = rest
                 }
                 return .nil
+            case "PROGN":
+                var result: LispValue = .nil
+                var seq = cdr
+                while case let .cons(expr, rest) = seq {
+                    result = try eval(expr, in: env)
+                    seq = rest
+                }
+                return result
             case "AND":
                 var result: LispValue = .t
                 var exprs = cdr

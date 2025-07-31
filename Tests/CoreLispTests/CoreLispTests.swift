@@ -363,3 +363,14 @@ func macroExpandOnly() async throws {
     
     #expect(result.description == "(+ 7 7)")
 }
+
+@MainActor
+@Test
+func prognTest() async throws {
+    // (progn form1 form2) should return the value of form2
+    let code = "(progn (+ 1 2) (* 2 3))"
+    var tokens = Array(tokenize(code).reversed())
+    let expr = try parse(tokens: &tokens)
+    let result = try eval(expr, in: global)
+    #expect(result.description == "6")
+}
