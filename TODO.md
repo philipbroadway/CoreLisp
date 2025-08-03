@@ -53,7 +53,7 @@
 - ✅ `eval`
 
 ## Iteration
-- ❌ `loop`
+- ✅ `loop`
 - ❌ `dolist`, `dotimes`
 - ❌ `mapcar`, `reduce`, etc.
 

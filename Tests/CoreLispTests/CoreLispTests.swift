@@ -366,6 +366,26 @@ func macroExpandOnly() async throws {
 
 @MainActor
 @Test
+func whileMacroTest() async throws {
+    let code = """
+     (defmacro while (condition &body body)
+       `(loop while ,condition do (progn ,@body)))
+     (setq i 0)
+     (while (< i 5)
+       (setq i (+ i 1)))
+     i
+    """
+    var tokens = Array(tokenize(code).reversed())
+    let exprs = try parseAll(tokens: &tokens)
+    var result: LispValue = .nil
+    for expr in exprs {
+        result = try eval(expr, in: global)
+    }
+    #expect(result.description == "5")
+}
+
+@MainActor
+@Test
 func prognTest() async throws {
     // (progn form1 form2) should return the value of form2
     let code = "(progn (+ 1 2) (* 2 3))"

@@ -427,21 +427,62 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                 guard case let .symbol(symName) = nameExpr else {
                     throw EvalError.invalidForm("DEFMACRO expects a symbol as function name")
                 }
-                // build a transformer that, when given the raw arg forms, binds
-                // them to the params and evals the body in a fresh env:
+                
                 let transformer: ([LispValue]) throws -> LispValue = { rawArgs in
                     let local = LispEnvironment(parent: env)
-                    // bind each parameter symbol to the *form* (not its eval)
+
+                    // Parse param list, detecting &BODY / &REST
                     var tempParams = paramList
-                    for argForm in rawArgs {
-                        guard case let .cons(symParamExpr, rest) = tempParams,
-                              case let .symbol(paramSym) = symParamExpr else {
-                            throw EvalError.invalidArgument("DEFMACRO parameter mismatch")
+                    var fixedParams: [LispSymbol] = []
+                    var restParam: LispSymbol? = nil
+
+                    while case let .cons(symExpr, rest) = tempParams {
+                        guard case let .symbol(sym) = symExpr else {
+                            throw EvalError.invalidArgument("DEFMACRO parameters must be symbols")
                         }
-                        local.define(paramSym, value: argForm)
-                        tempParams = rest
+
+                        let nameUpper = sym.name.uppercased()
+                        if nameUpper == "&BODY" || nameUpper == "&REST" {
+                            // Next symbol is the name of the rest parameter
+                            guard case let .cons(nextExpr, rest2) = rest,
+                                  case let .symbol(restSym) = nextExpr else {
+                                throw EvalError.invalidForm("Expected symbol after &BODY/&REST")
+                            }
+                            restParam = restSym
+                            tempParams = rest2
+                            break
+                        } else {
+                            fixedParams.append(sym)
+                            tempParams = rest
+                        }
                     }
-                    // evaluate body in that local env—result is the expansion
+
+                    // Bind fixed params
+                    var idx = 0
+                    for fixed in fixedParams {
+                        guard idx < rawArgs.count else {
+                            throw EvalError.invalidArgument("DEFMACRO parameter mismatch: missing argument for \(fixed.name)")
+                        }
+                        local.define(fixed, value: rawArgs[idx])
+                        idx += 1
+                    }
+
+                    // Bind rest/body if present
+                    if let restSym = restParam {
+                        // Collect remaining rawArgs starting at idx into a proper list
+                        var list: LispValue = .nil
+                        for i in stride(from: rawArgs.count - 1, through: idx, by: -1) {
+                            list = .cons(car: rawArgs[i], cdr: list)
+                        }
+                        local.define(restSym, value: list)
+                    } else {
+                        // No &body; ensure exact arity
+                        if idx != rawArgs.count {
+                            throw EvalError.invalidArgument("DEFMACRO parameter mismatch: too many arguments")
+                        }
+                    }
+
+                    // Evaluate body in that local env—result is the expansion
                     var result: LispValue = .nil
                     for form in bodyForms {
                         result = try eval(form, in: local)
@@ -450,7 +491,7 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                 }
                 env.defineMacro(symName, transformer: transformer)
                 return .symbol(symName)
-                
+            
             case "MACROEXPAND":
                 // get the raw form argument
                 let rawForm = try car1(cdr)
@@ -475,6 +516,40 @@ public func eval(_ value: LispValue, in env: LispEnvironment) throws -> LispValu
                 }
                 // otherwise just return the unwrapped form
                 return formToExpand
+            case "LOOP":
+                // only support: (loop while <condition> do <body>...)
+                // returns the last value of the body each iteration (or nil if never runs)
+                // syntax: (loop while cond do expr1 expr2 ...)
+                guard case let .cons(keywordWhile, rest1) = cdr,
+                      case let .symbol(whileSym) = keywordWhile,
+                      whileSym.name.uppercased() == "WHILE" else {
+                    throw EvalError.invalidForm("LOOP expected WHILE clause")
+                }
+
+                // rest1: (condExpr . restAfterCond)
+                let conditionExpr = try car1(rest1)
+                guard case let .cons(afterCond, rest2) = rest1 else {
+                    throw EvalError.invalidForm("LOOP missing DO clause")
+                }
+
+                // afterCond is the cdr after condition; expect (DO <body>...)
+                guard case let .cons(doSymExpr, bodyRest) = rest2,
+                      case let .symbol(doSym) = doSymExpr,
+                      doSym.name.uppercased() == "DO" else {
+                    throw EvalError.invalidForm("LOOP expected DO after condition")
+                }
+
+                var lastValue: LispValue = .nil
+                while true {
+                    let condValue = try eval(conditionExpr, in: env)
+                    if condValue.isNil { break }
+                    var bodySeq = bodyRest
+                    while case let .cons(expr, more) = bodySeq {
+                        lastValue = try eval(expr, in: env)
+                        bodySeq = more
+                    }
+                }
+                return lastValue
             default:
                 break
             }
